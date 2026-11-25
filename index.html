@@ -31,6 +31,7 @@
   --accent: #E5533D;
   --accent-hover: #EC6A55;
   --on-accent: #1A1714;
+  --accent-soft: #48271F;   /* le TV piu' vecchie non conoscono color-mix: resta questo colore */
   --accent-soft: color-mix(in srgb, #E5533D 20%, #211C18);
   --star: #E0A93B;
   --danger: #FF8A7A;
@@ -95,9 +96,11 @@ img { max-width: 100%; }
 .pb i { display: block; height: 100%; background: var(--accent); }
 .av { width: var(--tile-size); height: var(--tile-size); flex: none; border-radius: 10px; background: var(--tile); border: 1px solid var(--tile-line); display: grid; place-items: center; overflow: hidden; position: relative; }
 .rows .av { width: calc(var(--tile-size) * .9); height: calc(var(--tile-size) * .9); }
-.av img { width: 86%; height: 86%; object-fit: contain; position: absolute; inset: 7%; opacity: 0; transition: opacity .15s; }
+.av img { width: 86%; height: 86%; object-fit: contain; position: absolute; top: 7%; right: 7%; bottom: 7%; left: 7%; opacity: 0; transition: opacity .15s; }
 .av.has-logo img { opacity: 1; }
-.av.has-logo b { visibility: hidden; }
+.av b { transition: opacity .15s; }
+.av.has-logo b { opacity: 0; }
+.av.now img, .av.now b { transition: none; }
 .av b { width: 72%; height: 72%; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 500; font-size: calc(var(--tile-size) * .36); background: var(--c, #5c6bc0); }
 .rows .av b { font-size: calc(var(--tile-size) * .33); }
 .favdot { position: absolute; top: 6px; right: 8px; color: var(--star); }
@@ -335,7 +338,7 @@ body { background: var(--bg); }
 .epg-now-btn { background: var(--accent); color: var(--on-accent); font-weight: 800; letter-spacing: 0; border-radius: 500px; }
 .epg-row.ruler, .epg-ch { background: var(--bg); }
 .epg-p { background: var(--card); border-color: var(--line); border-radius: 10px; }
-.epg-p.now { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.epg-p.now { background: var(--accent-soft); border-color: rgba(229, 85, 61, .7); }
 .epg-nowline { background: var(--accent); }
 .epg-tick.day { color: var(--accent); }
 .epg-wrap .title { font-family: var(--display); font-size: 24px; font-weight: 700; padding-left: 4px; }
@@ -385,11 +388,64 @@ html[data-tile="l"] .rows .ch { min-height: 84px; } html[data-tile="l"] .rows .n
 .p-chl-grab { display: block; width: 40px; height: 4px; border-radius: 2px; background: rgba(243, 235, 221, .3); margin: 2px auto 0; flex: none; }
 @media (orientation: portrait) {
   /* telefono in verticale: il video sale in alto e la tendina occupa il resto, si vedono tutti e due */
+  #player video { transition: object-position .24s ease-out; }
   #player.chl-open video { object-position: center top; }
   .p-chl { top: calc(env(safe-area-inset-top, 0px) + 56.25vw); height: auto; max-width: none; }
 }
 @keyframes chlUp { from { transform: translateY(100%); } }
 @keyframes chlDown { to { transform: translateY(100%); } }
+
+/* ===== modalità TV: si guarda da lontano e si usa col telecomando =====
+   scritte piu' grandi, bordo di selezione sempre visibile (sulla TV non c'e' il puntatore) e margini ai lati,
+   perche' molte TV tagliano i bordi dell'immagine (overscan). */
+html.tv { font-size: 18px; --tv-x: 3.2vw; --tv-y: 2.4vh; }
+html.tv body { font-size: 17px; }
+html.tv #app { padding-left: max(var(--tv-x), env(safe-area-inset-left, 0px)); padding-right: max(var(--tv-x), env(safe-area-inset-right, 0px)); }
+html.tv .top { padding-top: var(--tv-y); }
+html.tv .brand { font-size: 30px; }
+html.tv .title small { font-size: 15px; }
+html.tv .appbar, html.tv .searchbar { height: 68px; }
+html.tv .ib { width: 56px; height: 56px; }
+html.tv .i { width: 28px; height: 28px; }
+html.tv .tab { height: 44px; padding: 0 20px; font-size: 16px; }
+html.tv .rows .ch { min-height: 84px; }
+html.tv .rows .nm { font-size: 19px; }
+html.tv .rows .sub { font-size: 15.5px; }
+html.tv .grid .nm { font-size: 15px; }
+html.tv #list { padding-bottom: calc(var(--tv-y) + 24px); }
+html.tv .menu button, html.tv .sheet .menu-btn, html.tv .dr-item { min-height: 60px; font-size: 17px; }
+html.tv .btn { height: 50px; font-size: 16px; padding: 0 26px; }
+html.tv .dlg-t, html.tv .sh-head b { font-size: 24px; }
+html.tv .p-top { padding-top: calc(var(--tv-y) + 4px); padding-left: var(--tv-x); padding-right: var(--tv-x); }
+html.tv .p-bot { padding-bottom: calc(var(--tv-y) + 8px); padding-left: var(--tv-x); padding-right: var(--tv-x); }
+html.tv #pName { font-size: 24px; }
+html.tv #pSub, html.tv .p-epg { font-size: 16px; }
+html.tv .p-zap { font-size: 22px; padding: 14px 24px; }
+html.tv .pc-row { min-height: 76px; }
+html.tv .pc-row .tx b { font-size: 18px; }
+html.tv .pc-row .tx small { font-size: 15px; }
+html.tv .epg-wrap .title { font-size: 28px; }
+/* la selezione si vede sempre, anche sui browser TV che non conoscono :focus-visible */
+html.tv button:focus, html.tv [role=button]:focus, html.tv summary:focus, html.tv input:focus, html.tv select:focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+html.tv #list .ch:focus, html.tv .pc-row:focus, html.tv .epg-p:focus, html.tv .epg-ch:focus { outline: 4px solid var(--accent); outline-offset: -2px; background: var(--surface); }
+html.tv .tab:focus { outline-offset: 3px; }
+html.tv .pc-row:focus { box-shadow: none; }
+.set-hint { margin: -6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+html.tv .set-hint { font-size: 15px; }
+html.tv .grid .ch { padding: 14px 6px 12px; gap: 10px; }
+html.tv #list.grid { gap: 6px 0; }
+html.tv .p-chl { max-width: none; height: min(58vh, 640px); left: var(--tv-x); right: var(--tv-x); }
+html.tv .p-chl-list { padding: 0 10px 14px; }
+html.tv .epg-ch { width: 120px; }
+html.tv .epg-row { height: 84px; }
+html.tv .epg-ch .av { width: 48px; height: 48px; }
+html.tv .epg-ch span { font-size: 13px; }
+html.tv .epg-p b { font-size: 16px; }
+html.tv .epg-p small { font-size: 14px; }
+html.tv .p-chl-h b { font-size: 26px; }
+html.tv .p-chl-tabs .tab { height: 42px; font-size: 15px; }
+html.tv .pc-row .av { width: 58px; height: 58px; }
+html.tv .pc-row .num { width: 36px; font-size: 15px; }
 </style>
 
 </head>
@@ -517,7 +573,7 @@ function h(tag, props, ...kids) {
     else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (k === "style") e.style.cssText = v;
     else e.setAttribute(k, v === true ? "" : v);
   }
-  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  for (const c of [].concat.apply([], kids)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
   return e;
 }
 const store = {
@@ -551,6 +607,16 @@ const LIB = { hls: "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js", 
 const FRAMED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 const UA = navigator.userAgent;
 const IS_ANDROID = /Android/i.test(UA), IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// smart TV e decoder: si guardano da lontano e si usano col telecomando, quindi interfaccia piu' grande,
+// selezione sempre visibile e margini di sicurezza ai bordi (molte TV tagliano i bordi dell'immagine)
+const IS_TV = (() => {
+  if (/smart-?tv|smarttv|tizen|web0s|webos|netcast|hbbtv|viera|bravia|aquos|googletv|android ?tv|crkey|philipstv|nettv|opera ?tv|inettvbrowser|large ?screen|roku|firetv|fire ?tv|vidaa|whaletv|zeasn|dlnadoc|sonydtv|hisense|\bvizio\b|\bmibox\b|shield ?android/i.test(UA)) return true;
+  if (/\bAFT[A-Z0-9]{1,8}\b/.test(UA)) return true;   // chiavette Amazon Fire TV (AFTB, AFTKA, AFTSO001...)
+  if (/\bTV\b/.test(UA)) return true;
+  if (/Android/i.test(UA) && !/Mobile/i.test(UA) && navigator.maxTouchPoints === 0) return true;   // Android TV: niente «Mobile», niente tocco
+  try { if (matchMedia("(pointer: none)").matches && matchMedia("(hover: none)").matches) return true; } catch (e) {}
+  return false;
+})();
 function copyText(txt) {
   const fallback = () => { const ta = h("textarea", { style: "position:fixed;opacity:0;top:0;left:0" }); ta.value = txt; document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) {} ta.remove(); toast(ok ? "Indirizzo copiato" : "Copia non riuscita: tieni premuto per selezionare"); };
   try { navigator.clipboard.writeText(txt).then(() => toast("Indirizzo copiato"), fallback); } catch (e) { fallback(); }
@@ -579,14 +645,17 @@ const DB = (() => {
 })();
 
 // ======================= impostazioni =======================
-const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, proxy: "", proxyVideo: false, sort: "orig" };
+const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, tvMode: "auto", proxy: "", proxyVideo: false, sort: "orig" };
 const CFG = Object.assign({}, DEF, store.get("settings", {}));
 function saveCfg() { store.set("settings", CFG); }
+function tvOn() { return CFG.tvMode === "on" || (CFG.tvMode !== "off" && IS_TV); }
 function applyCfg() {
-  const t = { s: [42, 64], m: [52, 76], l: [68, 100] }[CFG.tile] || [52, 76];
+  const tv = tvOn();   // sulla TV i riquadri sono molto piu' grandi: si guarda da lontano
+  const t = (tv ? { s: [64, 124], m: [88, 168], l: [112, 212] } : { s: [42, 64], m: [52, 76], l: [68, 100] })[CFG.tile] || (tv ? [88, 168] : [52, 76]);
   document.documentElement.style.setProperty("--tile-size", t[0] + "px");
   document.documentElement.style.setProperty("--tile-min", t[1] + "px");
   document.documentElement.dataset.tile = CFG.tile;
+  document.documentElement.classList.toggle("tv", tv);
   setIcon($("btnView"), CFG.view === "grid" ? "list" : "grid");
   $("btnView").setAttribute("aria-label", CFG.view === "grid" ? "Mostra come elenco" : "Mostra come griglia");
 }
@@ -594,7 +663,7 @@ function proxify(url) { const p = CFG.proxy.trim(); if (!p) return url; return p
 const isMixed = url => location.protocol === "https:" && /^http:\/\//i.test(url);
 
 // ======================= playlist M3U =======================
-function parseAttrs(s) { const a = {}; String(s).replace(/([\w-]+)=(?:"([^"]*)"|'([^']*)'|([^\s,"']+))/g, (_, k, d, q, b) => { a[k.toLowerCase()] = (d ?? q ?? b ?? "").trim(); return ""; }); return a; }
+function parseAttrs(s) { const a = {}; String(s).replace(/([\w-]+)=(?:"([^"]*)"|'([^']*)'|([^\s,"']+))/g, (_, k, d, q, b) => { a[k.toLowerCase()] = String(d !== undefined ? d : q !== undefined ? q : b !== undefined ? b : "").trim(); return ""; }); return a; }
 function parseExtinf(line) {
   const body = line.slice(line.indexOf(":") + 1); let inQ = false, q = "", cut = -1;
   for (let i = 0; i < body.length; i++) {
@@ -606,7 +675,7 @@ function parseExtinf(line) {
   return { attrs: parseAttrs(cut >= 0 ? body.slice(0, cut) : body), title: cut >= 0 ? body.slice(cut + 1).trim() : "" };
 }
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
-const deEnt = s => String(s || "").replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e) => e[0] === "#" ? String.fromCodePoint(parseInt(e[1] === "x" || e[1] === "X" ? e.slice(2) : e.slice(1), e[1] === "x" || e[1] === "X" ? 16 : 10) || 32) : (ENT[e.toLowerCase()] ?? m));
+const deEnt = s => String(s || "").replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e) => e[0] === "#" ? String.fromCodePoint(parseInt(e[1] === "x" || e[1] === "X" ? e.slice(2) : e.slice(1), e[1] === "x" || e[1] === "X" ? 16 : 10) || 32) : (ENT[e.toLowerCase()] !== undefined ? ENT[e.toLowerCase()] : m));
 function nameFromUrl(u) { try { const p = new URL(u).pathname.split("/").filter(Boolean).pop() || u; return decodeURIComponent(p).replace(/\.\w{2,4}$/, ""); } catch (e) { return u; } }
 function parseM3U(text, base) {
   text = String(text || "").replace(/^﻿/, "");
@@ -691,6 +760,7 @@ function listFor(tab, q) {
   if (CFG.sort === "az") L = L.slice().sort((a, b) => a.name.localeCompare(b.name, "it", { numeric: true, sensitivity: "base" }));
   return L;
 }
+const logoSeen = new Set();   // loghi gia' caricati una volta: dalla seconda compaiono senza dissolvenza
 const COLORS = ["#5c6bc0", "#8d6e63", "#fb8c00", "#f4511e", "#7cb342", "#43a047", "#00897b", "#e53935", "#d81b60", "#8e24aa", "#5e35b1", "#1e88e5", "#039be5", "#00acc1", "#9e9d24", "#ef6c00", "#546e7a"];
 function avatar(ch) {
   const letter = (ch.name.match(/[\p{L}\p{N}]/u) || ["?"])[0].toUpperCase();
@@ -698,13 +768,16 @@ function avatar(ch) {
   // l'iniziale colorata resta visibile finche' il logo non e' arrivato (o se non arriva mai)
   const av = h("span", { class: "av" }, h("b", { style: "--c:" + c, text: letter }));
   if (CFG.logos && ch.logo && /^(https?:|data:)/i.test(ch.logo)) {
-    const img = h("img", { alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
     // copia ottimizzata del logo (margini tolti, file piccolo) e fondo scuro per i loghi chiari, se la procedura di GitHub l'ha preparata
     const m = LOGOS && LOGOS[ch.logo];
     if (m && m[1]) av.classList.add("dark");
-    img.onload = () => { if (img.naturalWidth > 1) av.classList.add("has-logo"); else img.remove(); };
+    const src = m ? EPG_MIRROR + "logos/" + m[0] : ch.logo, known = logoSeen.has(src);
+    const img = h("img", { alt: "", loading: known ? "eager" : "lazy", decoding: known ? "sync" : "async", referrerpolicy: "no-referrer" });
+    img.onload = () => { if (img.naturalWidth > 1) { logoSeen.add(img.src); av.classList.add("has-logo"); } else img.remove(); };
     img.onerror = () => { if (m && img.src !== ch.logo) { img.src = ch.logo; return; } img.remove(); };
-    img.src = m ? EPG_MIRROR + "logos/" + m[0] : ch.logo; av.append(img);
+    img.src = src; av.append(img);
+    // gia' in memoria (es. riaprendo la tendina dei canali): si mostra subito, senza dissolvenza e senza riquadro vuoto
+    if (img.complete && img.naturalWidth > 1) { logoSeen.add(src); av.classList.add("has-logo", "now"); }
   }
   return av;
 }
@@ -1621,7 +1694,8 @@ async function playIdx(idx) {
   } catch (e) {}
   // tra i tentativi falliti si mostra il motivo piu' utile (es. «errore 404» invece di «formato non supportato»)
   let lastErr = null; const RANK = { http: 6, drm: 5, mixed: 4, network: 3, timeout: 2, format: 1, unknown: 0 };
-  const keep = e => { if (!lastErr || (RANK[e && e.kind] ?? 0) >= (RANK[lastErr.kind] ?? 0)) lastErr = e; };
+  const rk = e => RANK[e && e.kind] || 0;
+  const keep = e => { if (!lastErr || rk(e) >= rk(lastErr)) lastErr = e; };
   P.trace = [];
   // si usa solo l'indirizzo scritto nella lista M3U, cosi' com'e'
   const pl = plan(ch.url), steps = pl.steps;
@@ -1920,6 +1994,8 @@ function settingsDialog() {
     segRow("cfgView", "Vista dei canali", [["grid", "Griglia"], ["rows", "Elenco"]], CFG.view, v => set("view", v, true)),
     segRow("cfgTile", "Dimensione dei canali", [["s", "Piccoli"], ["m", "Medi"], ["l", "Grandi"]], CFG.tile, v => set("tile", v, true)),
     swRow("cfgLogos", "Mostra i loghi dei canali", "Se spento, si vede solo l'iniziale colorata.", CFG.logos, v => set("logos", v, true)),
+    segRow("cfgTv", "Modalità TV", [["auto", "Automatica"], ["on", "Sempre"], ["off", "Mai"]], CFG.tvMode, v => set("tvMode", v, true)),
+    h("p", { class: "set-hint", text: IS_TV ? "Rilevata una TV: scritte più grandi, bordo di selezione sempre visibile e margini ai lati. Si usa col telecomando." : "Per TV e decoder: scritte più grandi, bordo di selezione sempre visibile e margini ai lati." }),
     h("div", { class: "set-sec", text: "Riproduzione" }),
     swRow("cfgExt", "Apri i canali in un'altra app", IS_ANDROID ? "Il tocco su un canale apre VLC, MX Player o l'app che scegli." : IS_IOS ? "Il tocco su un canale apre VLC (se installato)." : "Disponibile su Android e iPhone. Sul computer resta il lettore interno.", CFG.player === "external", v => set("player", v ? "external" : "internal")),
     swRow("cfgResume", "Riapri l'ultimo canale all'avvio", null, CFG.resume, v => set("resume", v)),
@@ -1948,7 +2024,8 @@ function helpDialog() {
       li("Gruppi:", "le pillole in alto (Nazionali, Sport…) filtrano i canali; puoi anche scorrere a destra o a sinistra sull'elenco."),
       li("Se un canale non parte:", "l'app prova da sola altri modi e altre fonti della lista. Se non basta, «Apri in un'altra app» lo apre con VLC."),
       li("Altre playlist:", "dal menu ☰ → «Aggiungi playlist», con un link, un file o un accesso Xtream."),
-      li("Sulla TV:", "con Chrome compare il pulsante Trasmetti quando c'è un Chromecast sulla stessa rete.")),
+      li("Sulla TV:", "con Chrome compare il pulsante Trasmetti quando c'è un Chromecast sulla stessa rete."),
+      li("Col telecomando:", "le frecce si spostano, OK apre, «indietro» chiude. Mentre guardi: su e giù (o CH+/CH−) cambiano canale, OK apre la tendina dei canali e i tasti numerici sintonizzano un canale per numero.")),
     h("details", { class: "adv" }, h("summary", { text: "Formati supportati" }),
       h("ul", { class: "help adv-b" },
         li("Playlist:", "M3U e M3U8 (gruppi da group-title, loghi da tvg-logo), Xtream Codes."),
@@ -2221,21 +2298,40 @@ $("q").addEventListener("keydown", e => { if (e.key === "Enter") $("q").blur(); 
   $("btnView").onclick = () => { CFG.view = CFG.view === "grid" ? "rows" : "grid"; saveCfg(); applyCfg(); const top = $("main").scrollTop; render(true); $("main").scrollTop = top; };
   $("btnCast").onclick = () => { if (Cast.ctx) { if (Cast.ctx.getCurrentSession()) Cast.ctx.endCurrentSession(true); else Cast.ctx.requestSession().catch(() => {}); } };
 })();
+// tasto «indietro» dei telecomandi: Tizen (Samsung) 10009, webOS (LG) 461, Android TV e browser
+function isBackKey(e) { return e.key === "Escape" || e.key === "Backspace" || e.key === "XF86Back" || e.key === "BrowserBack" || e.key === "GoBack" || e.keyCode === 10009 || e.keyCode === 461; }
+// numeri del telecomando: si digita il numero del canale e dopo un attimo si sintonizza
+let numBuf = "", numT = 0;
+function typeNumber(d) {
+  numBuf = (numBuf + d).slice(-4); clearTimeout(numT);
+  const z = $("pZap"); z.textContent = numBuf; z.hidden = false;
+  numT = setTimeout(() => {
+    const n = parseInt(numBuf, 10); numBuf = "";
+    const ch = S.chans.find(c => c.i + 1 === n);
+    if (!ch) { z.textContent = "Nessun canale " + n; setTimeout(() => { z.hidden = true; }, 1500); return; }
+    z.hidden = true;
+    const inList = P.list.indexOf(ch);
+    if (inList >= 0) playIdx(inList); else { P.list = S.chans; P.listTab = TAB_ALL; playIdx(S.chans.indexOf(ch)); }
+  }, 1200);
+}
 document.addEventListener("keydown", e => {
-  if (e.target.closest && e.target.closest("input,textarea,select")) { if (e.key === "Escape") { const L = topLayer(); if (L) closeLayer(L); } return; }
+  if (e.target.closest && e.target.closest("input,textarea,select")) { if (isBackKey(e) && e.key !== "Backspace") { const L = topLayer(); if (L) closeLayer(L); } return; }
   if (!$("player").hidden && topLayer() === P.layer) {
     const k = e.key;
-    if (k === "ArrowUp" || k === "PageUp" || k === "ChannelUp") { e.preventDefault(); zap(-1); }
-    else if (k === "ArrowDown" || k === "PageDown" || k === "ChannelDown") { e.preventDefault(); zap(1); }
-    else if (k === " " || k === "k" || k === "MediaPlayPause") { e.preventDefault(); togglePlay(); showUi(); }
+    if (k >= "0" && k <= "9") { e.preventDefault(); showUi(); typeNumber(k); return; }
+    if (k === "ArrowUp" || k === "PageUp" || k === "ChannelUp" || k === "MediaTrackPrevious") { e.preventDefault(); zap(-1); }
+    else if (k === "ArrowDown" || k === "PageDown" || k === "ChannelDown" || k === "MediaTrackNext") { e.preventDefault(); zap(1); }
+    else if (k === " " || k === "k" || k === "MediaPlayPause" || k === "MediaPlay" || k === "MediaPause") { e.preventDefault(); togglePlay(); showUi(); }
     else if (k === "f" || k === "F") toggleFull();
     else if (k === "c" || k === "C" || (k === "Enter" && !(document.activeElement && document.activeElement.closest && document.activeElement.closest("#player button")))) { e.preventDefault(); openChPanel(); }
-    else if (k === "m" || k === "M") video.muted = !video.muted;
-    else if (k === "Escape" && !document.fullscreenElement) closePlayer();
+    else if (k === "m" || k === "M") { video.muted = !video.muted; showUi(); }
+    else if (k === "MediaStop" || (isBackKey(e) && !document.fullscreenElement)) { e.preventDefault(); closePlayer(); }
+    else if (isBackKey(e)) { e.preventDefault(); toggleFull(); }   // a schermo intero, «indietro» torna alla finestra
     else if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); if (isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); } else zap(k === "ArrowRight" ? 1 : -1); }
+    else showUi();
     return;
   }
-  if (e.key === "Escape") { const L = topLayer(); if (L) closeLayer(L); }
+  if (isBackKey(e)) { const L = topLayer(); if (L) { e.preventDefault(); closeLayer(L); } }
   else if (e.key === "/" && !layers.length) { e.preventDefault(); openSearch(); }
   else if (DIRS[e.key]) {   // telecomando / tastiera: le frecce spostano la selezione sull'elemento piu' vicino in quella direzione
     const box = topBox(); if (spatialMove(box, DIRS[e.key])) e.preventDefault();
@@ -2282,7 +2378,12 @@ function spatialMove(box, dir) {
   await dropDemo();
   if (!store.get("seededDefault", false)) { if (S.pls.some(p => p.id === DEFAULT_PL.id) || await installDefault(false)) store.set("seededDefault", true); }
   setTimeout(() => { if (!FRAMED) loadScript(LIB.hls).catch(() => {}); }, 2500);
-  loadLogoMap();   // il lettore piu' usato e' pronto prima del primo canale
+  loadLogoMap();
+  if (document.documentElement.classList.contains("tv")) setTimeout(() => {   // telecomando: si parte con un canale gia' selezionato
+    if (layers.length || !$("player").hidden) return;
+    const a = document.activeElement, busy = a && a.closest && a.closest("button,input,select,textarea,[role=button]");
+    const f = $("list").querySelector(".ch"); if (f && !busy) f.focus({ preventScroll: true });
+  }, 400);   // il lettore piu' usato e' pronto prima del primo canale
   const cur = store.get("cur", null), pl = S.pls.find(p => p.id === cur) || S.pls[0];
   if (pl) await selectPlaylist(pl, { boot: true }); else { renderTabs(); render(true); }
   initCast();
