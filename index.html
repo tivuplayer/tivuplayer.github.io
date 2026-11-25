@@ -537,6 +537,10 @@ html.has-mini #main { padding-bottom: 76px; }
 html.tv .mini { padding-left: var(--tv-x); padding-right: var(--tv-x); }
 html.tv .mini .tx b { font-size: 18px; }
 html.tv.has-mini #main { padding-bottom: 96px; }
+.p-freeze { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; transition: opacity .2s; }
+.p-freeze.out { opacity: 0; }
+#player.fit-cover .p-freeze { object-fit: cover; }
+#player.fit-fill .p-freeze { object-fit: fill; }
 </style>
 
 </head>
@@ -579,6 +583,7 @@ html.tv.has-mini #main { padding-bottom: 96px; }
 </div>
 <section class="player" id="player" hidden aria-label="Lettore">
   <video id="video" playsinline webkit-playsinline preload="auto" autopictureinpicture></video>
+  <canvas class="p-freeze" id="pFreeze" hidden aria-hidden="true"></canvas>
   <div class="p-cast" id="pCastInfo" hidden></div>
   <div class="p-spin" id="pSpin" hidden><i></i></div>
   <div class="p-note" id="pNote" hidden></div>
@@ -1747,6 +1752,7 @@ function note(t) { const n = $("pNote"); if (!n) return; n.textContent = t || ""
 const P = { list: [], idx: -1, ch: null, token: 0, hls: null, ts: null, dash: null, started: false, layer: null, hideT: 0, wake: null, retried: false, seeking: false, pip: false, pipKeep: 0 };
 const video = $("video");
 function openChannel(ch, forceInternal, forceDec) {
+  zapAt = Date.now();
   P.forceDec = forceDec ? ch.key : null;
   if (CFG.player === "external" && !forceInternal && externalHref(ch)) { addRecent(ch); openExternal(ch); return; }
   const L = S.list.length && S.list.includes(ch) ? S.list : S.chans;
@@ -1779,7 +1785,8 @@ function closePlayer() { if (P.layer) closeLayer(P.layer); else closePlayerNow()
 function backFromPlayer() { if (CFG.autoPip && !P.pip && pipPossible() && !video.paused && enterPip(true)) return; closePlayer(); }
 function closePlayerNow() {
   if (CH.open) closeChPanel();
-  P.token++; netReset(); stopEngines(); note(""); $("pLive").hidden = true; $("player").hidden = true; hideMsg(); $("pCastInfo").hidden = true; P.layer = null;
+  clearTimeout(prefT); clearInterval(prefIv); SEG_CACHE.clear();
+  P.token++; netReset(); stopEngines(); note(""); unfreeze(); $("pLive").hidden = true; $("player").hidden = true; hideMsg(); $("pCastInfo").hidden = true; P.layer = null;
   try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
   try { if (P.wake) P.wake.release(); } catch (e) {} P.wake = null;
   pipMode(false); exitPip();
@@ -1791,6 +1798,7 @@ function stopEngines() {
   try { video.pause(); video.removeAttribute("src"); video.load(); } catch (e) {}
 }
 function zap(d) {
+  zapAt = Date.now();
   if (!P.list.length) return; const n = P.list.length; const i = ((P.idx + d) % n + n) % n;
   const z = $("pZap"); z.textContent = P.list[i].name; z.hidden = false; clearTimeout(z._t); z._t = setTimeout(() => { z.hidden = true; }, 1600);
   playIdx(i);
@@ -1820,6 +1828,7 @@ function plan(url) {
 }
 async function playIdx(idx) {
   const ch = P.list[idx]; if (!ch) return;
+  freezeFrame();   // si tiene l'ultimo fotogramma al posto del nero, finche' il nuovo canale non parte
   P.idx = idx; P.ch = ch; P.started = false; P.retried = false; P.step = null; const token = ++P.token; netReset(); $("pLive").hidden = true;
   if (P.pip) { P.pipKeep = Date.now(); updateMini(); }   // cambio canale dalla barretta: si prova a restare in finestrella
   addRecent(ch); updatePlayerInfo(); hideMsg(); $("pCastInfo").hidden = true; showUi(true);
@@ -1850,7 +1859,7 @@ async function playIdx(idx) {
   // cambio canale piu' rapido: il modo che l'ultima volta ha funzionato (lettore + indirizzo) si prova per primo
   const win = (store.get("win") || {})[ch.key];
   if (win) { const wi = steps.findIndex(x => x.e === win.e && x.url === win.u); if (wi > 0) steps.unshift(steps.splice(wi, 1)[0]); }
-  warmNeighbours(idx);
+  warmNeighbours(idx); prefetchNeighbours();
   for (let i = 0; i < steps.length; i++) {
     const st = steps[i];
     if (token !== P.token) return;
@@ -1864,7 +1873,7 @@ async function playIdx(idx) {
         if (miss) { if (st.e === "hls") await new Promise(r => setTimeout(r, 300)); throw { kind: "format", det: "il browser salta " + miss + " (" + [...P.pmt.v, ...P.pmt.a].join(", ") + ")" }; }
       }
       if (token === P.token) {
-        P.started = true; spin(false); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
+        P.started = true; spin(false); unfreeze(); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
         altRemember(ch, st.alt); winRemember(ch, st);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note("Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
@@ -1882,7 +1891,7 @@ async function playIdx(idx) {
         && !P.trace.some(x => x.e === "hls" && x.alt === st.alt && /network|http|mixed/.test(x.kind))) steps.splice(i + 1, 0, { e: "hlsx", url: st.alt ? st.url : hlsLike, alt: st.alt });
     }
   }
-  spin(false); showError(lastErr || { kind: "unknown" }, ch);
+  spin(false); unfreeze(); showError(lastErr || { kind: "unknown" }, ch);
 }
 function attempt(st, token, proxied) {
   return new Promise(async (res, rej) => {
@@ -1900,13 +1909,14 @@ function attempt(st, token, proxied) {
       if (st.e === "hls" || st.e === "hlsx") {
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
-        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: true, backBufferLength: 30, ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: true, backBufferLength: 15, startLevel: 0, ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        if (!proxied) opts.pLoader = makePLoader(Hls.DefaultConfig.loader);   // liste gia' pronte: il canale parte senza aspettare
         if (st.e === "hlsx") {
           try { await decLoad(note); } catch (e) { return ko({ kind: "unknown", det: "decodificatore non caricato: " + (e && e.message || e) }); }
           if (token !== P.token) return ko({ kind: "stale" });
           note("Decodificatore avanzato: preparo il canale…");
           const L = decLoaders(token, P.ch.key, info => { if (info && !P.decShown) { P.decShown = true; P.decInfo = info; } });
-          Object.assign(opts, { pLoader: L.PL, fLoader: L.FL, fragLoadingTimeOut: 60000, maxBufferLength: 24, liveSyncDurationCount: 4, enableWorker: true });
+          Object.assign(opts, { pLoader: L.PL, fLoader: L.FL, startLevel: -1, fragLoadingTimeOut: 60000, maxBufferLength: 24, liveSyncDurationCount: 4, enableWorker: true });
         }
         else {   // lettore normale: si legge la scheda tecnica del primo pezzo, senza cambiarlo
           const Base = Hls.DefaultConfig.loader;
@@ -1917,7 +1927,25 @@ function attempt(st, token, proxied) {
             P.pmtP = crypto.subtle.importKey("raw", dd.key, { name: "AES-CBC" }, false, ["decrypt"])
               .then(k => crypto.subtle.decrypt({ name: "AES-CBC", iv: dd.iv }, k, copy)).then(peek).catch(() => {});
           };
-          opts.fLoader = class extends Base { load(ctx, cfg, cb) { super.load(ctx, cfg, Object.assign({}, cb, { onSuccess: (r, s2, c, n) => { const dd = c.frag && c.frag.decryptdata; if (dd && dd.method === "AES-128") peekEnc(r.data, dd); else peek(r.data); cb.onSuccess(r, s2, c, n); } })); } };
+          opts.fLoader = class extends Base {
+            load(ctx, cfg, cb) {
+              // pezzo gia' scaricato mentre si zappava: si usa quello, senza aspettare la rete
+              const hit = !ctx.rangeStart && !ctx.rangeEnd && ctx.url && segCacheGet(ctx.url);
+              if (hit) {
+                SEG_CACHE.delete(ctx.url);
+                const t0 = performance.now(), n = hit.buf.byteLength;
+                setTimeout(() => {
+                  try {
+                    peek(hit.buf);
+                    const st2 = { trequest: t0, tfirst: t0, tload: performance.now(), loaded: n, total: n, retry: 0, chunkCount: 1, bwEstimate: 0, loading: { start: t0, first: t0, end: performance.now() }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 } };
+                    cb.onSuccess({ url: ctx.url, data: hit.buf, code: 200 }, st2, ctx, null);
+                  } catch (e) { super.load(ctx, cfg, cb); }
+                }, 0);
+                return;
+              }
+              super.load(ctx, cfg, Object.assign({}, cb, { onSuccess: (r, s2, c, n) => { const dd = c.frag && c.frag.decryptdata; if (dd && dd.method === "AES-128") peekEnc(r.data, dd); else peek(r.data); cb.onSuccess(r, s2, c, n); } }));
+            }
+          };
           P.peek = peek;
         }
         const hls = new Hls(opts);
@@ -2004,6 +2032,23 @@ async function diagText(ch, trace) {
   return L.join("\n");
 }
 function spin(on) { $("pSpin").hidden = !on; }
+// l'ultimo fotogramma del canale precedente resta sullo schermo mentre il nuovo carica: niente lampo nero
+let freezeT = 0;
+function freezeFrame() {
+  const c = $("pFreeze");
+  try {
+    if (!P.started || !video.videoWidth || video.readyState < 2 || $("player").hidden) { c.hidden = true; return; }
+    const w = Math.min(720, video.videoWidth), hh = Math.max(1, Math.round(w * video.videoHeight / video.videoWidth));
+    c.width = w; c.height = hh;
+    c.getContext("2d").drawImage(video, 0, 0, w, hh);
+    c.hidden = false; c.classList.remove("out");
+    clearTimeout(freezeT); freezeT = setTimeout(unfreeze, 9000);   // non resta mai appeso
+  } catch (e) { c.hidden = true; }
+}
+function unfreeze() {
+  clearTimeout(freezeT); const c = $("pFreeze"); if (c.hidden) return;
+  c.classList.add("out"); setTimeout(() => { if (c.classList.contains("out")) { c.hidden = true; c.classList.remove("out"); } }, 200);
+}
 function hideMsg() { $("pMsg").hidden = true; $("player").classList.remove("has-msg"); }
 function showError(e, ch) {
   spin(false); if (!ch || ch !== P.ch) return;
@@ -2190,6 +2235,114 @@ function helpDialog() {
   ], actions: [{ label: "Ho capito", primary: true }] });
 }
 
+// ======================= cambio canale rapido =======================
+// La parte lenta di un cambio canale sono i «giri» in rete: la lista del canale (e, se c'e', la lista madre con le
+// qualita'). Mentre guardi, l'app tiene gia' pronte quelle dei canali sopra e sotto, cosi' il nuovo canale parte
+// senza aspettare. Le liste delle dirette invecchiano in fretta: si usano solo se fresche, altrimenti si scarica.
+const PL_CACHE = new Map(), PL_MAX = 6000;
+function plCacheGet(url) { const e = PL_CACHE.get(url); return e && Date.now() - e.at < PL_MAX ? e : null; }
+function plCachePut(url, txt, finalUrl) {
+  PL_CACHE.set(url, { t: txt, at: Date.now(), u: finalUrl || url });
+  if (PL_CACHE.size > 40) PL_CACHE.delete(PL_CACHE.keys().next().value);
+}
+async function plFetch(url) {
+  try {
+    const c = new AbortController(), to = setTimeout(() => c.abort(), 6000);
+    const r = await fetch(url, { cache: "no-store", signal: c.signal }); clearTimeout(to);
+    if (!r.ok) return null;
+    const t = await r.text(); if (!/#EXTM3U/i.test(t)) return null;
+    plCachePut(url, t, r.url); return { t, u: r.url };
+  } catch (e) { return null; }
+}
+// nella lista madre si sceglie la qualita' piu' leggera: e' quella da cui parte il lettore, e il primo pezzo arriva prima
+function firstVariant(txt, base) {
+  const L = txt.split(/\r?\n/); let best = null, bw = Infinity;
+  for (let i = 0; i < L.length; i++) {
+    if (!/^#EXT-X-STREAM-INF/i.test(L[i])) continue;
+    const m = /BANDWIDTH=(\d+)/i.exec(L[i]); const b = m ? +m[1] : 0;
+    let j = i + 1; while (j < L.length && (!L[j].trim() || L[j][0] === "#")) j++;
+    if (j >= L.length) continue;
+    if (b < bw) { bw = b; try { best = new URL(L[j].trim(), base).href; } catch (e) {} }
+  }
+  return best;
+}
+// Mentre si sta zappando, oltre alla lista si prende anche il primo pezzo video che servira': cosi' il canale
+// parte quasi subito. Si fa solo per i due canali vicini, non con la connessione lenta o a consumo, e si smette
+// appena ci si ferma su un canale: guardando la TV non si consuma nulla in piu'.
+const SEG_CACHE = new Map(), SEG_MAX = 14000;
+let zapAt = 0;
+function zapping() { return Date.now() - zapAt < 20000; }
+function fastLine() {
+  const c = navigator.connection;
+  return !(c && (c.saveData || /(^|-)2g|^3g/.test(c.effectiveType || ""))) && !CFG.slowNet;
+}
+function segCacheGet(url) { const e = SEG_CACHE.get(url); return e && Date.now() - e.at < SEG_MAX ? e : null; }
+// il pezzo da cui parte una diretta: il terzultimo della lista (e' la regola che usa il lettore)
+function startSegment(txt, base) {
+  const L = txt.split(/\r?\n/), segs = [];
+  for (let i = 0; i < L.length; i++) { const l = L[i].trim(); if (!l || l[0] === "#") continue; try { segs.push(new URL(l, base).href); } catch (e) {} }
+  if (segs.length < 2 || /#EXT-X-ENDLIST/i.test(txt)) return null;
+  return segs[Math.max(0, segs.length - 3)];
+}
+async function prefetchSeg(url) {
+  if (!url || segCacheGet(url) || SEG_CACHE.size > 6) return;
+  try {
+    const c = new AbortController(), to = setTimeout(() => c.abort(), 8000);
+    const r = await fetch(url, { cache: "no-store", signal: c.signal }); clearTimeout(to);
+    if (!r.ok) return;
+    const buf = await r.arrayBuffer();
+    if (buf.byteLength > 6e6) return;   // pezzo troppo grosso: non vale la pena tenerlo
+    SEG_CACHE.set(url, { buf, at: Date.now() });
+    if (SEG_CACHE.size > 4) SEG_CACHE.delete(SEG_CACHE.keys().next().value);
+  } catch (e) {}
+}
+async function prefetchCh(ch) {
+  if (!ch || FRAMED) return;
+  let st; try { st = plan(ch.url).steps.find(x => x.e === "hls"); } catch (e) { return; }
+  if (!st || isMixed(st.url)) return;
+  const got = plCacheGet(st.url) || await plFetch(st.url);
+  if (!got) return;
+  let media = got, mediaUrl = got.u || st.url;
+  if (/#EXT-X-STREAM-INF/i.test(got.t)) {
+    const v = firstVariant(got.t, mediaUrl); if (!v) return;
+    media = plCacheGet(v) || await plFetch(v); mediaUrl = (media && media.u) || v;
+    if (!media) return;
+  }
+  if (zapping() && fastLine()) await prefetchSeg(startSegment(media.t, mediaUrl));
+}
+let prefT = 0, prefIv = 0;
+function prefetchNeighbours() {
+  clearTimeout(prefT); clearInterval(prefIv);
+  const go = () => {
+    if (document.hidden || $("player").hidden || !P.list.length || P.list.length < 2) return;
+    const n = P.list.length;
+    for (const d of [1, -1]) { const c = P.list[((P.idx + d) % n + n) % n]; if (c && c !== P.ch) prefetchCh(c); }
+  };
+  const quick = zapping();   // si sta zappando: ci si prepara subito, cosi' il prossimo canale e' gia' pronto
+  prefT = setTimeout(() => { go(); prefIv = setInterval(go, quick ? 3000 : 5000); }, quick ? 180 : 700);
+}
+// il lettore chiede la lista: se e' gia' pronta parte subito, altrimenti la scarica come sempre
+function makePLoader(Base) {
+  return class extends Base {
+    load(ctx, cfg, cb) {
+      const hit = ctx && ctx.url && plCacheGet(ctx.url);
+      if (hit) {
+        const t0 = performance.now();
+        setTimeout(() => {
+          if (this.destroyed) return;
+          const st = { trequest: t0, tfirst: t0, tload: performance.now(), loaded: hit.t.length, total: hit.t.length, retry: 0, chunkCount: 1, bwEstimate: 0, loading: { start: t0, first: t0, end: performance.now() }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 } };
+          try { cb.onSuccess({ url: hit.u, data: hit.t, code: 200 }, st, ctx, null); } catch (e) { super.load(ctx, cfg, cb); }
+        }, 0);
+        return;
+      }
+      super.load(ctx, cfg, Object.assign({}, cb, { onSuccess: (r, st, c, nd) => {
+        try { if (typeof r.data === "string" && /#EXTM3U/i.test(r.data)) plCachePut(c.url, r.data, r.url); } catch (e) {}
+        cb.onSuccess(r, st, c, nd);
+      } }));
+    }
+  };
+}
+
 // ======================= finestrella (picture in picture) =======================
 // Uscendo dal lettore, dall'app o aprendone un'altra, il canale continua in una finestrella sopra le altre app
 // e intanto il resto di Tivu Player resta usabile: in basso compare una barretta con il canale in onda.
@@ -2229,6 +2382,23 @@ function pipMode(on) {
     $("mini").hidden = true; document.documentElement.classList.remove("has-mini");
     if (!pl.hidden) { document.body.style.overflow = "hidden"; if (!P.layer) P.layer = pushLayer(playerLayerClose); }
   }
+}
+// Tornando nell'app dopo averla lasciata in sottofondo, alcuni telefoni mostrano una pagina vuota finche'
+// qualcosa non cambia: si forza un ridisegno e si rimette a posto quello che era rimasto a meta'.
+let backT2 = 0;
+function backFromBackground() {
+  clearTimeout(backT2);
+  backT2 = setTimeout(() => {
+    try {
+      // la finestrella non c'e' piu' ma l'app crede di esserci: si torna al lettore grande
+      if (P.pip && !document.pictureInPictureElement && video.webkitPresentationMode !== "picture-in-picture") openFromMini();
+      else if (P.pip) updateMini();
+      if (!$("player").hidden && !P.pip && P.started && video.paused && !NET.rebuf) { const pr = video.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      if (S.pl && !$("list").children.length) render(true);   // elenco sparito: si ridisegna
+      const r = document.documentElement;
+      r.style.opacity = "0.999"; requestAnimationFrame(() => { r.style.opacity = ""; });
+    } catch (e) {}
+  }, 60);
 }
 function updateMini() {
   if (!P.pip || !P.ch) return;
@@ -2282,9 +2452,13 @@ function openFromMini() {   // dalla barretta si torna al lettore grande
   // il browser chiede di passare in finestrella quando si esce dall'app
   if ("mediaSession" in navigator) try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => enterPip(true)); } catch (e) {}
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden || !CFG.autoPip || P.pip || $("player").hidden || video.paused || !pipPossible()) return;
-    enterPip(true);
+    if (document.hidden) {
+      if (CFG.autoPip && !P.pip && !$("player").hidden && !video.paused && pipPossible()) enterPip(true);
+      return;
+    }
+    backFromBackground();
   });
+  addEventListener("pageshow", e => { if (e.persisted) backFromBackground(); });
   setInterval(() => { if (P.pip) updateMini(); }, 20000);
 })();
 
@@ -2502,7 +2676,7 @@ function slowNet() {
 }
 function hlsNetOpts() {
   return slowNet()
-    ? { liveSyncDurationCount: 5, maxBufferLength: 60, maxMaxBufferLength: 120, fragLoadingTimeOut: 40000, manifestLoadingTimeOut: 20000, levelLoadingTimeOut: 20000, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }
+    ? { liveSyncDurationCount: 5, maxBufferLength: 45, maxMaxBufferLength: 80, fragLoadingTimeOut: 40000, manifestLoadingTimeOut: 20000, levelLoadingTimeOut: 20000, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }
     : { liveSyncDurationCount: 3, maxBufferLength: 30, maxMaxBufferLength: 90 };
 }
 function bufAhead() {
@@ -2529,7 +2703,7 @@ function stopRebuffer() { if (NET.rebuf) clearInterval(NET.rebuf.iv); NET.rebuf 
 function netReset() { stopRebuffer(); if (NET.recon) clearTimeout(NET.recon.t); NET.recon = null; NET.stalls = []; NET.lastT = -1; NET.lastMove = Date.now(); NET.t0pos = video.currentTime || 0; }
 function growBuffers() {   // dal secondo blocco: scorta piu' grande anche nei lettori
   NET.big = true;
-  try { if (P.hls) Object.assign(P.hls.config, { maxBufferLength: 60, maxMaxBufferLength: 120, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }); } catch (e) {}
+  try { if (P.hls) Object.assign(P.hls.config, { maxBufferLength: 45, maxMaxBufferLength: 80, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }); } catch (e) {}
   try { if (P.dash) P.dash.updateSettings({ streaming: { buffer: { bufferTimeAtTopQuality: 60, bufferTimeAtTopQualityLongForm: 90, stableBufferTime: 30 } } }); } catch (e) {}
 }
 function onStall() {
