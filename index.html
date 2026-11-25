@@ -204,6 +204,28 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
 .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); z-index: 60; background: #2b3038; color: #f2f4f7; border-radius: 8px; padding: 12px 18px; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100vw - 32px); animation: fade .2s ease-out; }
 
 /* lettore */
+.epg-wrap { position: fixed; inset: 0; z-index: 25; background: var(--bg); display: flex; flex-direction: column; padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px); animation: fade .15s ease-out; }
+.epg-wrap .top { padding-top: env(safe-area-inset-top, 0px); }
+.epg-now-btn { background: rgba(255, 255, 255, .16); border: 0; color: var(--on-bar); font-weight: 500; font-size: 14px; letter-spacing: .3px; padding: 0 14px; height: 40px; border-radius: 20px; }
+.epg-scroll { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.epg-grid { position: relative; }
+.epg-row { display: flex; height: 64px; border-bottom: 1px solid var(--line); }
+.epg-row.ruler { position: sticky; top: 0; z-index: 3; height: 34px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.epg-ch { position: sticky; left: 0; z-index: 2; flex: none; width: 84px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px; cursor: pointer; }
+.epg-ch .av { width: 36px; height: 36px; font-size: 13px; border-radius: 8px; }
+.epg-ch span { font-size: 11px; line-height: 1.15; color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.epg-row.ruler .epg-ch { z-index: 4; cursor: default; font-size: 12px; font-weight: 500; color: var(--muted); }
+.epg-line { position: relative; flex: none; }
+.epg-tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); padding: 8px 0 0 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.epg-tick.day { color: var(--accent); font-weight: 500; }
+.epg-p { position: absolute; top: 4px; bottom: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; overflow: hidden; text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.epg-p b { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.epg-p small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.epg-p.now { background: var(--accent-soft); border-color: var(--accent); }
+.epg-p.past { opacity: .55; }
+.epg-nowline { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger); z-index: 1; pointer-events: none; }
+.epg-empty { padding: 32px 24px; text-align: center; color: var(--muted); line-height: 1.5; }
+.p-epg.tap { cursor: pointer; }
 .player { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
 .player video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .player.fit-cover video { object-fit: cover; }
@@ -262,6 +284,7 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
       <button class="ib" id="btnMenu" type="button" aria-label="Apri il menu"></button>
       <div class="title" id="title">Tivù</div>
       <button class="ib" id="btnSearch" type="button" aria-label="Cerca"></button>
+      <button class="ib" id="btnGuide" type="button" aria-label="Guida TV"></button>
       <button class="ib" id="btnView" type="button" aria-label="Cambia vista"></button>
       <button class="ib" id="btnCast" type="button" aria-label="Trasmetti" hidden></button>
       <button class="ib" id="btnMore" type="button" aria-label="Altre opzioni"></button>
@@ -677,6 +700,7 @@ function sheet(head, items) {
     if (it.node) { sh.append(it.node); continue; }
     sh.append(h("button", { class: "menu-btn" + (it.danger ? " danger" : ""), type: "button", onclick: () => { closeLayer(L); it.run(); } }, icon(it.icon), h("span", { text: it.label })));
   }
+  if (!$("player").hidden) { scrim.style.zIndex = 55; sh.style.zIndex = 56; }   // sopra il lettore
   document.body.append(scrim, sh);
   const L = pushLayer(() => { scrim.remove(); sh.remove(); });
   scrim.addEventListener("click", () => closeLayer(L));
@@ -1030,6 +1054,66 @@ function guideSheet(ch) {
   if (!ul.children.length) ul.append(h("li", {}, h("time", { text: "" }), h("div", {}, h("b", { text: "Nessun programma nelle prossime ore" }))));
   sheet(h("div", { class: "sh-head" }, avatar(ch), h("div", { class: "tx" }, h("b", { text: ch.name }), h("small", { text: "Guida TV" }))), [{ node: ul }]);
   if (cur) setTimeout(() => cur.scrollIntoView({ block: "center" }), 60);
+}
+
+// ======================= guida TV a griglia (prossime ore) =======================
+function openEpgGrid() {
+  const PPM = 4, CHW = 84, now = Date.now(), MIN = 60e3;
+  const base = (S.list && S.list.length ? S.list : S.chans) || [];
+  const rows = base.filter(c => S.epg[c.key] && S.epg[c.key].some(p => p.e > now));
+  const t0 = Math.floor((now - 60 * MIN) / (30 * MIN)) * 30 * MIN;
+  let t1 = now + 3 * 3600e3; for (const c of rows) for (const p of S.epg[c.key]) if (p.e > t1) t1 = p.e;
+  t1 = Math.min(t1, now + 30 * 3600e3); t1 = Math.ceil(t1 / (30 * MIN)) * 30 * MIN;
+  const W = Math.round((t1 - t0) / MIN * PPM), X = t => Math.round((t - t0) / MIN * PPM);
+  const scroll = h("div", { class: "epg-scroll" }), grid = h("div", { class: "epg-grid", style: "width:" + (CHW + W) + "px" });
+  const back = h("button", { class: "ib", type: "button", "aria-label": "Indietro" }, icon("back"));
+  const nowBtn = h("button", { class: "epg-now-btn", type: "button" }, "ADESSO");
+  const wrap = h("div", { class: "epg-wrap", role: "dialog", "aria-label": "Guida TV" },
+    h("header", { class: "top" }, h("div", { class: "appbar" }, back, h("div", { class: "title", text: "Guida TV" }), nowBtn)), scroll);
+  if (!rows.length) {
+    const has = S.pl && epgUrls(S.pl).length;
+    scroll.append(h("div", { class: "epg-empty" }, h("p", { text: has ? "La guida TV non è ancora caricata, oppure nessun canale di questa scheda ha la programmazione." : "Questa playlist non indica una guida TV. Puoi aggiungerne una modificando la playlist (campo «Guida TV»)." }),
+      has ? h("button", { class: "btn primary", type: "button", style: "margin-top:12px", onclick: () => { closeLayer(L); loadEpg(S.pl, true).then(() => openEpgGrid()); } }, "Carica la guida TV") : null));
+  } else {
+    const ruler = h("div", { class: "epg-row ruler" }, h("div", { class: "epg-ch", text: dayLabel(now) }));
+    const rl = h("div", { class: "epg-line", style: "width:" + W + "px" });
+    for (let t = t0; t < t1; t += 30 * MIN) { const d = new Date(t), mid = d.getHours() === 0 && d.getMinutes() === 0; rl.append(h("div", { class: "epg-tick" + (mid ? " day" : ""), style: "left:" + X(t) + "px", text: mid ? dayLabel(t) + " " + hm(t) : hm(t) })); }
+    ruler.append(rl); grid.append(ruler);
+    for (const c of rows) {
+      const line = h("div", { class: "epg-line", style: "width:" + W + "px" });
+      for (const p of S.epg[c.key]) {
+        if (p.e <= t0 || p.s >= t1) continue;
+        const l = X(Math.max(p.s, t0)), w = Math.max(4, X(Math.min(p.e, t1)) - l - 3);
+        const cls = "epg-p" + (p.s <= now && p.e > now ? " now" : p.e <= now ? " past" : "");
+        line.append(h("button", { class: cls, type: "button", style: "left:" + l + "px;width:" + w + "px", onclick: () => progSheet(c, p) },
+          h("b", { text: p.t }), w > 70 ? h("small", { text: hm(p.s) + "–" + hm(p.e) }) : null));
+      }
+      grid.append(h("div", { class: "epg-row" }, h("div", { class: "epg-ch", title: c.name, onclick: () => openChannel(c) }, avatar(c), h("span", { text: c.name })), line));
+    }
+    const nl = h("div", { class: "epg-nowline" }); grid.append(nl);
+    const place = () => { nl.style.left = (CHW + X(Date.now())) + "px"; };
+    place(); scroll.append(grid);
+    const toNow = smooth => scroll.scrollTo({ left: Math.max(0, X(Date.now()) - 48), behavior: smooth ? "smooth" : "auto" });
+    nowBtn.onclick = () => toNow(true); requestAnimationFrame(() => toNow(false));
+    var iv = setInterval(place, 30000);
+  }
+  if (!rows.length) nowBtn.hidden = true;
+  document.body.append(wrap);
+  const L = pushLayer(() => { clearInterval(iv); wrap.remove(); });
+  back.onclick = () => closeLayer(L);
+}
+function dayLabel(t) {
+  const d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - today) / 864e5);
+  return diff === 0 ? "Oggi" : diff === 1 ? "Domani" : d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" });
+}
+function progSheet(ch, p) {
+  const t = Date.now(), on = p.s <= t && p.e > t;
+  const body = h("div", { style: "padding:4px 20px 12px" },
+    h("p", { style: "margin:0 0 6px;color:var(--muted);font-size:13.5px", text: dayLabel(p.s) + " · " + hm(p.s) + "–" + hm(p.e) + (on ? " · in onda" : "") }),
+    p.d ? h("p", { style: "margin:0;line-height:1.5", text: p.d }) : null);
+  sheet(h("div", { class: "sh-head" }, avatar(ch), h("div", { class: "tx" }, h("b", { text: p.t }), h("small", { text: ch.name }))),
+    [{ node: body }, { icon: "play", label: on ? "Guarda adesso" : "Guarda " + ch.name, run: () => openChannel(ch) }, ...(S.epg[ch.key] ? [{ icon: "guide", label: "Tutta la programmazione di " + ch.name, run: () => guideSheet(ch) }] : [])]);
 }
 
 // ======================= app esterne =======================
@@ -1547,7 +1631,7 @@ function updatePlayerInfo() {
   $("pName").textContent = ch.name; $("pSub").textContent = [ch.group, S.pl && S.pl.name].filter(Boolean).join(" · ");
   setIcon($("pFav"), isFav(ch) ? "star" : "starO"); $("pFav").style.color = isFav(ch) ? "var(--star)" : "";
   $("pFav").setAttribute("aria-label", isFav(ch) ? "Togli dai preferiti" : "Aggiungi ai preferiti");
-  const box = $("pEpg"); box.replaceChildren(); const x = nowNext(ch);
+  const box = $("pEpg"); box.replaceChildren(); const x = nowNext(ch); box.classList.toggle("tap", !!(S.epg[ch.key] && S.epg[ch.key].length));
   if (x && x.now) { box.append(h("div", { class: "now", text: hm(x.now.s) + " " + x.now.t }), h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" }))); if (x.next) box.append(h("div", { class: "next", text: "Dopo: " + hm(x.next.s) + " " + x.next.t })); }
   else if (x && x.next) box.append(h("div", { class: "next", text: "Alle " + hm(x.next.s) + ": " + x.next.t }));
   else if (plan(ch.url).live) box.append(h("div", { class: "p-live", text: "DIRETTA" }));
@@ -1669,6 +1753,7 @@ function moreMenu() {
   const items = [];
   if (S.pl && S.pl.url) items.push({ icon: "refresh", label: "Aggiorna playlist", run: () => refreshPlaylist(S.pl) });
   if (S.pl && epgUrls(S.pl).length) items.push({ icon: "guide", label: "Aggiorna guida TV", run: () => loadEpg(S.pl, true) });
+  items.unshift({ icon: "guide", label: "Guida TV (prossime ore)", run: () => openEpgGrid() });
   items.push({ icon: "add", label: "Aggiungi playlist", run: () => playlistDialog() });
   items.push({ sep: true }, { label: "Ordina" });
   items.push({ icon: "sort", label: "Come nella playlist", checked: CFG.sort === "orig", run: () => { CFG.sort = "orig"; saveCfg(); render(true); } });
@@ -1686,7 +1771,8 @@ $("q").addEventListener("keydown", e => { if (e.key === "Enter") $("q").blur(); 
 (() => {
   setIcon($("btnMenu"), "menu"); setIcon($("btnSearch"), "search"); setIcon($("btnCast"), "cast"); setIcon($("btnMore"), "more");
   setIcon($("btnSearchBack"), "back"); setIcon($("btnSearchClear"), "close");
-  $("btnMenu").onclick = openDrawer; $("btnSearch").onclick = openSearch; $("btnMore").onclick = moreMenu;
+  $("btnMenu").onclick = openDrawer; $("btnSearch").onclick = openSearch; $("btnMore").onclick = moreMenu; setIcon($("btnGuide"), "guide"); $("btnGuide").onclick = () => openEpgGrid();
+  $("pEpg").addEventListener("click", e => { if (P.ch && S.epg[P.ch.key] && S.epg[P.ch.key].length) { e.stopPropagation(); guideSheet(P.ch); } });
   $("btnSearchBack").onclick = () => closeLayer(searchLayer);
   $("btnSearchClear").onclick = () => { $("q").value = ""; S.q = ""; render(true); $("q").focus(); };
   $("btnView").onclick = () => { CFG.view = CFG.view === "grid" ? "rows" : "grid"; saveCfg(); applyCfg(); const top = $("main").scrollTop; render(true); $("main").scrollTop = top; };
