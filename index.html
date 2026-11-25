@@ -14,7 +14,7 @@
 <meta name="description" content="Lettore IPTV nel browser: playlist M3U, canali per gruppi, preferiti, guida TV.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&display=swap">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* Layout (stile Joy / myTube): app a schermo intero, nome dell'app e schede dei gruppi a pillola in alto, canali sotto (griglia o elenco), lettore sovrapposto. */
@@ -207,7 +207,8 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
 .epg-line { position: relative; flex: none; }
 .epg-tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); padding: 8px 0 0 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .epg-tick.day { color: var(--accent); font-weight: 500; }
-.epg-p { position: absolute; top: 4px; bottom: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; overflow: hidden; text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.epg-p { position: absolute; top: 4px; bottom: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; overflow: hidden; overflow: clip; text-align: left; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; min-width: 0; color: var(--fg); cursor: pointer; }
+.epg-p .pt { position: sticky; left: 92px; display: flex; flex-direction: column; gap: 2px; width: fit-content; max-width: 100%; min-width: 0; }
 .epg-p b { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .epg-p small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .epg-p.now { background: var(--accent-soft); border-color: var(--accent); }
@@ -269,10 +270,11 @@ body { background: var(--bg); }
 .top { background: var(--bg); color: var(--fg); box-shadow: none; }
 .appbar { height: 64px; padding: 0 4px 0 6px; }
 .title { display: flex; flex-direction: column; justify-content: center; padding-left: 8px; line-height: 1.1; }
-.brand { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.brand { font-family: var(--display); font-size: clamp(19px, 5.3vw, 25px); font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .brand b { color: var(--accent); font-weight: inherit; }
 .title small { font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0; }
 .title small:empty { display: none; }
+@media (max-width: 480px) { .appbar .ib { width: 44px; height: 44px; } .appbar { gap: 0; } .title { padding-left: 4px; } }
 .ib:hover { background: rgba(243, 235, 221, .08); }
 .ib:active { background: rgba(243, 235, 221, .14); transform: scale(.94); }
 .searchbar { height: 64px; }
@@ -341,6 +343,15 @@ body { background: var(--bg); }
 .p-msg .btn.primary { background: var(--accent); color: var(--on-accent); }
 .p-epg .pb i, .p-seek input { accent-color: var(--accent); }
 .p-epg .pb i { background: var(--accent); }
+.ch-more { width: 40px; height: 40px; margin-right: -10px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; }
+.ch-more:hover, .ch-more:active { background: var(--surface-2); color: var(--fg); }
+.grid .ch-more { display: none; }
+.fld input:focus, .fld textarea:focus, .fld select:focus, .searchbar input:focus { border-color: rgba(243, 235, 221, .45); }
+.adv { border-top: 1px solid var(--line); padding-top: 10px; }
+.adv summary { cursor: pointer; font-weight: 700; color: var(--muted); padding: 6px 0; list-style-position: inside; }
+.adv-b { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
+ul.adv-b { gap: 6px; }
+.av.dark { background: #2E2721; box-shadow: inset 0 0 0 1px rgba(243, 235, 221, .1), 0 6px 16px rgba(0, 0, 0, .35); }
 </style>
 
 </head>
@@ -633,8 +644,12 @@ function avatar(ch) {
   const av = h("span", { class: "av" }, h("b", { style: "--c:" + c, text: letter }));
   if (CFG.logos && ch.logo && /^(https?:|data:)/i.test(ch.logo)) {
     const img = h("img", { alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+    // copia ottimizzata del logo (margini tolti, file piccolo) e fondo scuro per i loghi chiari, se la procedura di GitHub l'ha preparata
+    const m = LOGOS && LOGOS[ch.logo];
+    if (m && m[1]) av.classList.add("dark");
     img.onload = () => { if (img.naturalWidth > 1) av.classList.add("has-logo"); else img.remove(); };
-    img.onerror = () => img.remove(); img.src = ch.logo; av.append(img);
+    img.onerror = () => { if (m && img.src !== ch.logo) { img.src = ch.logo; return; } img.remove(); };
+    img.src = m ? EPG_MIRROR + "logos/" + m[0] : ch.logo; av.append(img);
   }
   return av;
 }
@@ -653,6 +668,7 @@ function tile(ch) {
     if (e) { tx.append(h("span", { class: "sub ep", text: e.text }), h("span", { class: "pb" }, h("i", { style: "width:" + Math.round(e.pct * 100) + "%" }))); }
     else if (ch.group && (S.tab === TAB_ALL || S.tab === TAB_FAV || S.tab === TAB_REC || S.q)) tx.append(h("span", { class: "sub", text: ch.group }));
     b.append(tx); if (isFav(ch)) b.append(h("span", { class: "favdot" }, icon("star")));
+    b.append(h("span", { class: "ch-more", role: "button", "aria-label": "Opzioni di " + ch.name, title: "Opzioni" }, icon("more")));
   }
   return b;
 }
@@ -682,7 +698,7 @@ function renderEmpty() {
   let ic = "tv", t = "Nessun canale", p = "";
   if (!S.pl) { ic = "playlist"; t = "Nessuna playlist"; p = "Aggiungi una playlist M3U dal menu per vedere i canali."; }
   else if (S.q) { ic = "search"; t = "Nessun risultato"; p = "Nessun canale contiene «" + S.q + "». Prova con un'altra parola."; }
-  else if (S.tab === TAB_FAV) { ic = "starO"; t = "Ancora nessun preferito"; p = "Tieni premuto un canale (o fai clic con il tasto destro) e scegli «Aggiungi ai preferiti». Puoi farlo anche dal lettore con la stella."; }
+  else if (S.tab === TAB_FAV) { ic = "starO"; t = "Ancora nessun preferito"; p = "Mentre guardi un canale tocca la stella in alto, oppure tieni premuto un canale e scegli «Aggiungi ai preferiti»."; }
   else if (S.tab === TAB_REC) { ic = "history"; t = "Nessun canale visto di recente"; p = "I canali che apri compaiono qui, dal più recente."; }
   else if (!S.chans.length) { ic = "playlist"; t = "La playlist è vuota"; p = "Non contiene canali. Controlla l'indirizzo o il file e aggiornala."; }
   e.append(icon(ic), h("h3", { text: t }), h("p", { text: p }));
@@ -696,10 +712,10 @@ new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) renderMore(
   const list = $("list"); let lpT = 0, lpFired = false, sx = 0, sy = 0, lastSheet = 0;
   const chOf = el => { const b = el.closest(".ch"); return b ? byKey().get(b.dataset.k) : null; };
   const openSheet = ch => { if (Date.now() - lastSheet < 700) return; lastSheet = Date.now(); channelSheet(ch); };
-  list.addEventListener("click", e => { if (lpFired) { lpFired = false; e.preventDefault(); return; } const ch = chOf(e.target); if (ch) openChannel(ch); });
+  list.addEventListener("click", e => { if (lpFired) { lpFired = false; e.preventDefault(); return; } const ch = chOf(e.target); if (!ch) return; if (e.target.closest(".ch-more")) { lastSheet = 0; openSheet(ch); return; } openChannel(ch); });
   list.addEventListener("contextmenu", e => { const ch = chOf(e.target); if (!ch) return; e.preventDefault(); clearTimeout(lpT); openSheet(ch); });
   list.addEventListener("touchstart", e => {
-    const ch = chOf(e.target); if (!ch) return; lpFired = false; sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    const ch = chOf(e.target); if (!ch || e.target.closest(".ch-more")) return; lpFired = false; sx = e.touches[0].clientX; sy = e.touches[0].clientY;
     clearTimeout(lpT); lpT = setTimeout(() => { lpFired = true; openSheet(ch); }, 520);
   }, { passive: true });
   list.addEventListener("touchmove", e => { if (Math.abs(e.touches[0].clientX - sx) > 10 || Math.abs(e.touches[0].clientY - sy) > 10) clearTimeout(lpT); }, { passive: true });
@@ -802,7 +818,7 @@ function openDrawer() {
   body.append(h("button", { class: "dr-item", type: "button", onclick: go(() => playlistDialog()) }, icon("add"), h("span", { class: "tx" }, h("b", { text: "Aggiungi playlist" }))));
   body.append(h("div", { class: "dr-sep" }));
   body.append(h("button", { class: "dr-item", type: "button", onclick: go(settingsDialog) }, icon("settings"), h("span", { class: "tx" }, h("b", { text: "Impostazioni" }))));
-  body.append(h("button", { class: "dr-item", type: "button", onclick: go(helpDialog) }, icon("info"), h("span", { class: "tx" }, h("b", { text: "Guida e formati" }))));
+  body.append(h("button", { class: "dr-item", type: "button", onclick: go(helpDialog) }, icon("info"), h("span", { class: "tx" }, h("b", { text: "Come si usa" }))));
   dr.append(head, body); document.body.append(scrim, dr);
   const L = pushLayer(() => { scrim.remove(); dr.remove(); });
   scrim.addEventListener("click", () => closeLayer(L));
@@ -811,8 +827,8 @@ function openDrawer() {
 // ======================= rete: playlist e guida TV =======================
 function friendlyFetchError(url, e) {
   if (e && e.status) return "Il server ha risposto con l'errore " + e.status + (e.status === 401 || e.status === 403 ? ": credenziali non valide o accesso negato." : e.status === 404 ? ": indirizzo non trovato." : ".");
-  if (isMixed(url) && !CFG.proxy) return "L'indirizzo usa http e questa pagina è https: il browser lo blocca. Scarica il file e caricalo con «File», oppure imposta un proxy nelle impostazioni.";
-  return "Non riesco a leggere l'indirizzo. Il server potrebbe non permettere la lettura da un sito web (CORS) o non essere raggiungibile. Prova a scaricare il file e a caricarlo con «File», oppure imposta un proxy nelle impostazioni.";
+  if (isMixed(url) && !CFG.proxy) return "L'indirizzo non è sicuro (http) e il browser lo blocca. Puoi scaricare il file e aggiungerlo con «File».";
+  return "Il server non risponde oppure non permette di leggere questo indirizzo da un sito. Puoi scaricare il file e aggiungerlo con «File».";
 }
 async function fetchSmart(url, opt) {
   const cands = [];
@@ -853,6 +869,18 @@ async function* textChunks(resp) {
 // (.github/workflows/epg.yml nel repository del sito) ne scarica una copia ogni poche ore nel ramo «epg»; qui si prova
 // prima quella copia (stesso file, nessun server), poi l'indirizzo originale.
 const EPG_MIRROR = "https://raw.githubusercontent.com/tivuplayer/tivuplayer.github.io/epg/";
+let LOGOS = store.get("logos", null);
+async function loadLogoMap() {
+  if (FRAMED) return; const at = store.get("logosAt", 0);
+  if (LOGOS && Date.now() - at < 12 * 3600e3) return;
+  try {
+    const r = await fetch(EPG_MIRROR + "logos.json", { cache: "no-store" }); if (!r.ok) return;
+    const m = await r.json(); if (!m || typeof m !== "object" || !Object.values(m).every(v => Array.isArray(v) && typeof v[0] === "string")) return;
+    const changed = JSON.stringify(m) !== JSON.stringify(LOGOS);
+    LOGOS = m; store.set("logos", m); store.set("logosAt", Date.now());
+    if (changed && CFG.logos) render(true);
+  } catch (e) {}
+}
 function epgMirrorName(url) { return url.replace(/^https?:\/\//i, "").replace(/[?#].*$/, "").replace(/[^A-Za-z0-9.]+/g, "_"); }
 async function fetchEpgFile(url) {
   try { const r = await fetch(EPG_MIRROR + epgMirrorName(url), { cache: "no-store" }); if (r.ok) return r; } catch (e) {}
@@ -864,7 +892,7 @@ async function fetchEpg(urls, chans, onProgress) {
     if (c.tvgId) { const k = c.tvgId.toLowerCase(); (byId.get(k) || byId.set(k, []).get(k)).push(c.key); }
     for (const nm of [c.tvgName, c.name]) { const k = normName(nm); if (k) (byName.get(k) || byName.set(k, []).get(k)).push(c.key); }
   }
-  const idMap = new Map(), out = {}, now = Date.now(), from = now - 3 * 3600e3, to = now + 36 * 3600e3; let nProg = 0;
+  const idMap = new Map(), out = {}, now = Date.now(), from = now - 3 * 3600e3, to = now + 56 * 3600e3; let nProg = 0;
   const tagText = (blk, tag) => { const m = new RegExp("<" + tag + "\\b[^>]*>([\\s\\S]*?)</" + tag + ">").exec(blk); return m ? deEnt(m[1].replace(/<!\[CDATA\[|\]\]>/g, "")).trim() : ""; };
   const attr = (blk, a) => { const m = new RegExp("\\b" + a + '="([^"]*)"').exec(blk.slice(0, blk.indexOf(">") + 1)); return m ? deEnt(m[1]) : ""; };
   function handle(tag, blk) {
@@ -899,7 +927,7 @@ async function fetchEpg(urls, chans, onProgress) {
       if (onProgress) onProgress(total, nProg);
     }
   }
-  for (const k in out) { out[k].sort((x, y) => x.s - y.s); const seen = new Set(); out[k] = out[k].filter(p => !seen.has(p.s) && seen.add(p.s)).slice(0, 80); }
+  for (const k in out) { out[k].sort((x, y) => x.s - y.s); const seen = new Set(); out[k] = out[k].filter(p => !seen.has(p.s) && seen.add(p.s)).slice(0, 140); }
   return out;
 }
 function nowNext(ch) {
@@ -1125,12 +1153,13 @@ function guideSheet(ch) {
 
 // ======================= guida TV a griglia (prossime ore) =======================
 function openEpgGrid() {
-  const PPM = 4, CHW = 84, now = Date.now(), MIN = 60e3;
+  const PPM = 4, CHW = 84, now = Date.now(), MIN = 60e3; let io = null;
   const base = (S.list && S.list.length ? S.list : S.chans) || [];
   const rows = base.filter(c => S.epg[c.key] && S.epg[c.key].some(p => p.e > now));
   const t0 = Math.floor((now - 60 * MIN) / (30 * MIN)) * 30 * MIN;
   let t1 = now + 3 * 3600e3; for (const c of rows) for (const p of S.epg[c.key]) if (p.e > t1) t1 = p.e;
-  t1 = Math.min(t1, now + 30 * 3600e3); t1 = Math.ceil(t1 / (30 * MIN)) * 30 * MIN;
+  const endTomorrow = new Date(now); endTomorrow.setHours(24, 0, 0, 0); endTomorrow.setDate(endTomorrow.getDate() + 1);
+  t1 = Math.min(t1, endTomorrow.getTime());   // oggi e domani per intero t1 = Math.ceil(t1 / (30 * MIN)) * 30 * MIN;
   const W = Math.round((t1 - t0) / MIN * PPM), X = t => Math.round((t - t0) / MIN * PPM);
   const scroll = h("div", { class: "epg-scroll" }), grid = h("div", { class: "epg-grid", style: "width:" + (CHW + W) + "px" });
   const back = h("button", { class: "ib", type: "button", "aria-label": "Indietro" }, icon("back"));
@@ -1142,19 +1171,33 @@ function openEpgGrid() {
     scroll.append(h("div", { class: "epg-empty" }, h("p", { text: has ? "La guida TV non è ancora caricata, oppure nessun canale di questa scheda ha la programmazione." : "Questa playlist non indica una guida TV. Puoi aggiungerne una modificando la playlist (campo «Guida TV»)." }),
       has ? h("button", { class: "btn primary", type: "button", style: "margin-top:12px", onclick: () => { closeLayer(L); loadEpg(S.pl, true).then(() => openEpgGrid()); } }, "Carica la guida TV") : null));
   } else {
-    const ruler = h("div", { class: "epg-row ruler" }, h("div", { class: "epg-ch", text: dayLabel(now) }));
+    const corner = h("div", { class: "epg-ch", text: dayLabel(now) });
+    const ruler = h("div", { class: "epg-row ruler" }, corner);
     const rl = h("div", { class: "epg-line", style: "width:" + W + "px" });
     for (let t = t0; t < t1; t += 30 * MIN) { const d = new Date(t), mid = d.getHours() === 0 && d.getMinutes() === 0; rl.append(h("div", { class: "epg-tick" + (mid ? " day" : ""), style: "left:" + X(t) + "px", text: mid ? dayLabel(t) + " " + hm(t) : hm(t) })); }
     ruler.append(rl); grid.append(ruler);
-    for (const c of rows) {
-      const line = h("div", { class: "epg-line", style: "width:" + W + "px" });
+    // le righe si riempiono solo quando stanno per entrare in vista: con molti canali la guida si apre subito
+    // ... e in orizzontale a pezzi di 6 ore, man mano che si scorre verso le ore successive
+    let lim = Math.min(t1, now + 6 * 3600e3); const filled = [];
+    const fill = (line, c) => {
+      const t = Date.now(), frag = document.createDocumentFragment(), from = line._to || -Infinity;
+      if (!line._to) filled.push(line); line._to = lim;
       for (const p of S.epg[c.key]) {
-        if (p.e <= t0 || p.s >= t1) continue;
+        if (p.e <= t0 || p.s >= t1 || p.s >= lim || (from !== -Infinity && p.s < from)) continue;
         const l = X(Math.max(p.s, t0)), w = Math.max(4, X(Math.min(p.e, t1)) - l - 3);
-        const cls = "epg-p" + (p.s <= now && p.e > now ? " now" : p.e <= now ? " past" : "");
-        line.append(h("button", { class: cls, type: "button", style: "left:" + l + "px;width:" + w + "px", onclick: () => progSheet(c, p) },
-          h("b", { text: p.t }), w > 70 ? h("small", { text: hm(p.s) + "–" + hm(p.e) }) : null));
+        const cls = "epg-p" + (p.s <= t && p.e > t ? " now" : p.e <= t ? " past" : "");
+        const b = document.createElement("button"); b.type = "button"; b.className = cls; b.style.cssText = "left:" + l + "px;width:" + w + "px";
+        const tx = document.createElement("span"); tx.className = "pt";
+        const bt = document.createElement("b"); bt.textContent = p.t; tx.append(bt);
+        if (w > 70) { const sm = document.createElement("small"); sm.textContent = hm(p.s) + "–" + hm(p.e); tx.append(sm); }
+        b.append(tx); b.onclick = () => progSheet(c, p); frag.append(b);
       }
+      line.append(frag);
+    };
+    io = "IntersectionObserver" in window ? new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); fill(e.target, e.target._c); } }, { root: scroll, rootMargin: "600px 0px" }) : null;
+    for (const c of rows) {
+      const line = h("div", { class: "epg-line", style: "width:" + W + "px" }); line._c = c;
+      if (io) io.observe(line); else fill(line, c);
       grid.append(h("div", { class: "epg-row" }, h("div", { class: "epg-ch", title: c.name, onclick: () => openChannel(c) }, avatar(c), h("span", { text: c.name })), line));
     }
     const nl = h("div", { class: "epg-nowline" }); grid.append(nl);
@@ -1162,11 +1205,21 @@ function openEpgGrid() {
     place(); scroll.append(grid);
     const toNow = smooth => scroll.scrollTo({ left: Math.max(0, X(Date.now()) - 48), behavior: smooth ? "smooth" : "auto" });
     nowBtn.onclick = () => toNow(true); requestAnimationFrame(() => toNow(false));
+    let ticking = false;
+    scroll.addEventListener("scroll", () => {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        corner.textContent = dayLabel(t0 + (scroll.scrollLeft + 40) / PPM * MIN);   // «Oggi» / «Domani» secondo l'ora in vista
+        const viewEnd = t0 + (scroll.scrollLeft + scroll.clientWidth - CHW) / PPM * MIN;
+        if (viewEnd + 2 * 3600e3 > lim && lim < t1) { while (viewEnd + 2 * 3600e3 > lim && lim < t1) lim = Math.min(t1, lim + 6 * 3600e3); for (const ln of filled) fill(ln, ln._c); }
+      });
+    }, { passive: true });
     var iv = setInterval(place, 30000);
   }
   if (!rows.length) nowBtn.hidden = true;
   document.body.append(wrap);
-  const L = pushLayer(() => { clearInterval(iv); wrap.remove(); });
+  const L = pushLayer(() => { clearInterval(iv); if (io) io.disconnect(); wrap.remove(); });
   back.onclick = () => closeLayer(L);
 }
 function dayLabel(t) {
@@ -1685,8 +1738,8 @@ function hideMsg() { $("pMsg").hidden = true; $("player").classList.remove("has-
 function showError(e, ch) {
   spin(false); if (!ch || ch !== P.ch) return;
   const T = {
-    mixed: ["Canale bloccato dal browser", "Il canale usa un indirizzo http e questa pagina è https, quindi il browser non lo carica. Aprilo in un'altra app (come VLC) oppure imposta un proxy https nelle impostazioni."],
-    network: ["Il canale non risponde", "Il server del canale non è raggiungibile o non permette la visione da un sito web. Può funzionare in un'altra app (come VLC) o con un proxy."],
+    mixed: ["Canale bloccato dal browser", "Questo canale usa un indirizzo non sicuro (http) e il browser non lo apre. Puoi guardarlo con un'altra app, per esempio VLC."],
+    network: ["Il canale non risponde", "Il canale è spento in questo momento, oppure non si può guardare da un sito. Riprova tra poco o aprilo con un'altra app, per esempio VLC."],
     http: ["Il server ha rifiutato il canale", "Errore " + (e.code || "") + ": il canale potrebbe essere offline, cambiato di indirizzo o riservato agli abbonati."],
     drm: ["Canale protetto", "Questo canale è cifrato (DRM) e può essere visto solo nell'app ufficiale dell'emittente."],
     format: ["Formato non supportato", "Questo browser non riesce a decodificare il canale. Prova ad aprirlo in un'altra app."],
@@ -1800,31 +1853,51 @@ function settingsDialog() {
     swRow("cfgResume", "Riapri l'ultimo canale all'avvio", null, CFG.resume, v => set("resume", v)),
     h("div", { class: "set-sec", text: "Playlist" }),
     swRow("cfgAuto", "Aggiorna da sola le playlist con link", "Quando la apri, se è più vecchia di 24 ore.", CFG.autoRefresh, v => set("autoRefresh", v)),
-    h("div", { class: "set-sec", text: "Rete" }),
-    field("Proxy (facoltativo)", proxy, "Serve per i canali http su questa pagina https e per i server che bloccano i siti web (CORS). L'indirizzo del canale viene aggiunto in fondo, oppure al posto di {url}."),
-    swRow("cfgProxyVideo", "Usa il proxy anche per i video", "Se spento, il proxy serve solo per playlist, guida TV e canali http.", CFG.proxyVideo, v => set("proxyVideo", v)),
     h("div", { class: "set-sec", text: "Dati" }),
     h("div", { class: "chips" },
       h("button", { class: "chip", type: "button", onclick: () => { if (!S.pl) return; S.recs = []; store.set("rec." + S.pl.id, []); if (S.tab === TAB_REC) render(true); toast("Recenti cancellati"); } }, "Cancella i recenti"),
       h("button", { class: "chip", type: "button", onclick: async () => { if (await installDefault(true)) toast("Lista predefinita ripristinata"); } }, "Ripristina la lista predefinita")),
+    h("details", { class: "adv" }, h("summary", { text: "Opzioni avanzate" }),
+      h("div", { class: "adv-b" },
+        field("Proxy (facoltativo)", proxy, "Solo per utenti esperti: un tuo server che legge i canali al posto del browser. L'indirizzo del canale viene aggiunto in fondo, oppure al posto di {url}."),
+        swRow("cfgProxyVideo", "Usa il proxy anche per i video", "Se spento, il proxy serve solo per playlist, guida TV e canali http.", CFG.proxyVideo, v => set("proxyVideo", v)))),
   ];
   dialog({ title: "Impostazioni", wide: true, body, actions: [{ label: "Fatto", primary: true, run: () => { set("proxy", proxy.value.trim()); } }] });
 }
 function helpDialog() {
   const li = (b, t) => h("li", {}, h("b", { text: b }), " " + t);
-  dialog({ title: "Guida e formati", wide: true, body: [
+  dialog({ title: "Come si usa", wide: true, body: [
     h("ul", { class: "help" },
-      li("Playlist:", "M3U e M3U8, da link, da file, incollate o con accesso Xtream Codes. Gruppi da group-title, loghi da tvg-logo."),
-      li("Canali:", "HLS (.m3u8), DASH (.mpd, senza DRM), MPEG-TS (.ts, anche Xtream), FLV, MP4 e audio."),
-      li("Decodificatore avanzato:", "se il browser non legge il formato di un canale HLS (audio Dolby AC-3/E-AC-3, audio MP2, video MPEG-2), lo converte al volo con FFmpeg, come fa VLC. Parte da solo; dal menu del canale puoi anche sceglierlo a mano. La prima volta scarica circa 10 MB."),
-      li("Guida TV:", "XMLTV, anche compressa .gz. Si collega ai canali con tvg-id o con il nome."),
-      li("Preferiti:", "tieni premuto un canale, oppure tocca la stella nel lettore."),
-      li("Nel lettore:", "scorri in su o in giù per cambiare canale, tocca due volte per lo schermo intero."),
-      li("Canali http:", "su una pagina https il browser li blocca. Si aprono in VLC con «Apri in un'altra app», oppure con un proxy https."),
-      li("Trasmetti:", "con Chrome compare il pulsante Cast quando c'è un Chromecast o una TV compatibile sulla stessa rete.")),
-    h("p", {}, "Tasti: ", h("kbd", { text: "↑" }), " ", h("kbd", { text: "↓" }), " cambia canale, ", h("kbd", { text: "Spazio" }), " pausa, ", h("kbd", { text: "F" }), " schermo intero, ", h("kbd", { text: "M" }), " audio, ", h("kbd", { text: "Esc" }), " chiude."),
+      li("Guardare un canale:", "toccalo. Nel lettore scorri in su o in giù per passare al canale vicino, tocca due volte per lo schermo intero."),
+      li("Preferiti:", "tocca la stella nel lettore, oppure tieni premuto un canale (o tocca ⋮ nella vista elenco) e scegli «Aggiungi ai preferiti»."),
+      li("Guida TV:", "tocca l'orologio in alto per vedere cosa c'è adesso e nelle prossime ore su tutti i canali. Tocca un programma per i dettagli."),
+      li("Gruppi:", "le pillole in alto (Nazionali, Sport…) filtrano i canali; puoi anche scorrere a destra o a sinistra sull'elenco."),
+      li("Se un canale non parte:", "l'app prova da sola altri modi e altre fonti della lista. Se non basta, «Apri in un'altra app» lo apre con VLC."),
+      li("Altre playlist:", "dal menu ☰ → «Aggiungi playlist», con un link, un file o un accesso Xtream."),
+      li("Sulla TV:", "con Chrome compare il pulsante Trasmetti quando c'è un Chromecast sulla stessa rete.")),
+    h("details", { class: "adv" }, h("summary", { text: "Formati supportati" }),
+      h("ul", { class: "help adv-b" },
+        li("Playlist:", "M3U e M3U8 (gruppi da group-title, loghi da tvg-logo), Xtream Codes."),
+        li("Canali:", "HLS (.m3u8), DASH (.mpd, senza DRM), MPEG-TS, FLV, MP4 e audio."),
+        li("Decodificatore avanzato:", "converte al volo con FFmpeg i canali con audio Dolby (AC-3/E-AC-3), MP2 o video MPEG-2. La prima volta scarica circa 10 MB."),
+        li("Guida TV:", "XMLTV, anche compressa .gz, collegata ai canali con tvg-id o con il nome."),
+        li("Tastiera:", "↑ ↓ cambia canale, Spazio pausa, F schermo intero, M audio, Esc chiude."))),
     h("p", { text: "Tivù Player non fornisce canali: riproduce le playlist che aggiungi tu. Usa solo contenuti che hai il diritto di guardare." }),
-  ], actions: [{ label: "Chiudi", primary: true }] });
+  ], actions: [{ label: "Ho capito", primary: true }] });
+}
+
+// ======================= installa come app =======================
+let installEvt = null;
+const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installEvt = e;
+  if (!store.get("instAsked", false) && !FRAMED) { store.set("instAsked", true); setTimeout(() => setStatus("Installa Tivù Player: si apre a schermo intero, con la sua icona, come un'app.", 0, { label: "Installa", run: installApp }), 4000); }
+});
+addEventListener("appinstalled", () => { installEvt = null; toast("Tivù Player installata"); });
+function canInstall() { return !IS_STANDALONE && !FRAMED && (!!installEvt || IS_IOS); }
+function installApp() {
+  if (installEvt) { const ev = installEvt; ev.prompt(); ev.userChoice.finally(() => { installEvt = null; }); return; }
+  dialog({ title: "Installa come app", body: [h("p", { text: "In Safari tocca il pulsante Condividi (il quadrato con la freccia) e poi «Aggiungi alla schermata Home». Tivù Player si aprirà a schermo intero, con la sua icona." })], actions: [{ label: "Ho capito", primary: true }] });
 }
 
 // ======================= barra in alto, ricerca, tastiera =======================
@@ -1834,6 +1907,7 @@ function moreMenu() {
   if (S.pl && epgUrls(S.pl).length) items.push({ icon: "guide", label: "Aggiorna guida TV", run: () => loadEpg(S.pl, true) });
   items.unshift({ icon: "guide", label: "Guida TV (prossime ore)", run: () => openEpgGrid() });
   items.push({ icon: "add", label: "Aggiungi playlist", run: () => playlistDialog() });
+  if (canInstall()) items.push({ icon: "tv", label: "Installa come app", run: installApp });
   items.push({ sep: true }, { label: "Ordina" });
   items.push({ icon: "sort", label: "Come nella playlist", checked: CFG.sort === "orig", run: () => { CFG.sort = "orig"; saveCfg(); render(true); } });
   items.push({ icon: "sort", label: "Per nome (A-Z)", checked: CFG.sort === "az", run: () => { CFG.sort = "az"; saveCfg(); render(true); } });
@@ -1880,7 +1954,8 @@ document.addEventListener("keydown", e => {
   await refreshPlaylistsList();
   await dropDemo();
   if (!store.get("seededDefault", false)) { if (S.pls.some(p => p.id === DEFAULT_PL.id) || await installDefault(false)) store.set("seededDefault", true); }
-  setTimeout(() => { if (!FRAMED) loadScript(LIB.hls).catch(() => {}); }, 2500);   // il lettore piu' usato e' pronto prima del primo canale
+  setTimeout(() => { if (!FRAMED) loadScript(LIB.hls).catch(() => {}); }, 2500);
+  loadLogoMap();   // il lettore piu' usato e' pronto prima del primo canale
   const cur = store.get("cur", null), pl = S.pls.find(p => p.id === cur) || S.pls[0];
   if (pl) await selectPlaylist(pl, { boot: true }); else { renderTabs(); render(true); }
   initCast();
