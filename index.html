@@ -1277,7 +1277,7 @@ function guideSheet(ch) {
   for (const p of L) { if (p.e < t - 3600e3) continue; const li = h("li", { class: p.s <= t && p.e > t ? "now" : "" }, h("time", { text: hm(p.s) }), h("div", {}, h("b", { text: p.t }), p.d ? h("p", { text: p.d }) : null)); if (li.className) cur = li; ul.append(li); }
   if (!ul.children.length) ul.append(h("li", {}, h("time", { text: "" }), h("div", {}, h("b", { text: "Nessun programma nelle prossime ore" }))));
   sheet(h("div", { class: "sh-head" }, avatar(ch), h("div", { class: "tx" }, h("b", { text: ch.name }), h("small", { text: "Guida TV" }))), [{ node: ul }]);
-  if (cur) setTimeout(() => cur.scrollIntoView({ block: "center" }), 60);
+  if (cur) setTimeout(() => { const sc = ul.parentNode; if (sc) sc.scrollTop = Math.max(0, cur.offsetTop - (sc.clientHeight - cur.offsetHeight) / 2); }, 60);
 }
 
 // ======================= guida TV a griglia (prossime ore) =======================
@@ -1949,7 +1949,8 @@ document.addEventListener("fullscreenchange", () => setIcon($("pFull"), document
   on("pMute", () => { video.muted = !video.muted; });
   on("pFit", () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); });
   on("pFull", toggleFull);
-  const pl = $("player"); let sx = 0, sy = 0, st = 0, moved = 0;   // moved: quando e' finito l'ultimo gesto (il tocco che lo segue subito va ignorato)
+  const pl = $("player"); let sx = 0, sy = 0, st = 0, moved = 0;
+  pl.addEventListener("scroll", () => { if (pl.scrollTop || pl.scrollLeft) { pl.scrollTop = 0; pl.scrollLeft = 0; } });   // moved: quando e' finito l'ultimo gesto (il tocco che lo segue subito va ignorato)
   // il gesto vale ovunque sul video, anche partendo sopra i pulsanti (un tocco fermo sui pulsanti resta un tocco);
   // non partono gesti dalla barra di avanzamento, dai messaggi e dalla tendina
   pl.addEventListener("touchstart", e => { st = 0; if (e.touches.length > 1 || e.target.closest("input,.p-msg,.p-chl")) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive: true });
@@ -2006,7 +2007,7 @@ function settingsDialog() {
     h("div", { class: "chips" },
       h("button", { class: "chip", type: "button", onclick: () => { if (!S.pl) return; S.recs = []; store.set("rec." + S.pl.id, []); if (S.tab === TAB_REC) render(true); toast("Recenti cancellati"); } }, "Cancella i recenti"),
       h("button", { class: "chip", type: "button", onclick: async () => { if (await installDefault(true)) toast("Lista predefinita ripristinata"); } }, "Ripristina la lista predefinita")),
-    h("details", { class: "adv", ontoggle: e => { if (e.currentTarget.open) { const d = e.currentTarget; setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "start" }), 30); } } }, h("summary", { text: "Opzioni avanzate" }),
+    h("details", { class: "adv", ontoggle: e => { if (e.currentTarget.open) { const d = e.currentTarget; setTimeout(() => { const sc = d.closest(".dlg-b"); if (sc) sc.scrollTo({ top: d.offsetTop - 8, behavior: "smooth" }); }, 30); } } }, h("summary", { text: "Opzioni avanzate" }),
       h("div", { class: "adv-b" },
         field("Proxy (facoltativo)", proxy, "Solo per utenti esperti: un tuo server che legge i canali al posto del browser. L'indirizzo del canale viene aggiunto in fondo, oppure al posto di {url}."),
         swRow("cfgProxyVideo", "Usa il proxy anche per i video", "Se spento, il proxy serve solo per playlist, guida TV e canali http.", CFG.proxyVideo, v => set("proxyVideo", v)))),
@@ -2068,7 +2069,7 @@ function renderChTabs() {
     const n = t.id === TAB_FAV ? [...S.favs].filter(k => byKey().has(k)).length : null;
     box.append(h("button", { class: "tab", type: "button", role: "tab", "aria-selected": String(t.id === CH.tab), onclick: () => { CH.tab = t.id; renderChTabs(); renderChList(true); } }, t.label, n ? h("span", { class: "n", text: String(n) }) : null));
   }
-  const on = box.querySelector('[aria-selected="true"]'); if (on) on.scrollIntoView({ block: "nearest", inline: "center" });
+  const on = box.querySelector('[aria-selected="true"]'); if (on) box.scrollLeft = Math.max(0, on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2);
 }
 function chRow(ch, i) {
   const e = epgLine(ch), cur = ch === P.ch;
@@ -2097,7 +2098,8 @@ function renderChList(reset) {
     const sent = h("div", { class: "p-chl-more" }); box.append(sent);
     if (CH.io) CH.io.disconnect();
     CH.io = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) renderChList(false); }, { root: box, rootMargin: "600px" }); CH.io.observe(sent);
-    const on = box.querySelector(".pc-row.on"); if (on) requestAnimationFrame(() => { on.scrollIntoView({ block: "center" }); on.focus({ preventScroll: true }); });
+    const on = box.querySelector(".pc-row.on");
+    if (on) { box.scrollTop = Math.max(0, on.offsetTop - (box.clientHeight - on.offsetHeight) / 2); on.focus({ preventScroll: true }); }
     return;
   }
   const sent = box.querySelector(".p-chl-more"); if (!sent || CH.shown >= CH.list.length) return;
