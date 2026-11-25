@@ -262,7 +262,7 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
 .p-det { width: 100%; margin-top: 4px; text-align: left; }
 .p-det summary { cursor: pointer; text-align: center; color: rgba(255, 255, 255, .75); font-size: 13.5px; padding: 6px; }
 .p-pre { white-space: pre-wrap; word-break: break-all; font: 11.5px/1.45 ui-monospace, Menlo, Consolas, monospace; max-height: 34vh; overflow: auto; background: rgba(255, 255, 255, .08); border-radius: 8px; padding: 10px; margin: 6px 0 0; color: #e6e9ee; user-select: text; -webkit-user-select: text; touch-action: pan-y; }
-.p-note { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 110px); transform: translateX(-50%); background: rgba(0, 0, 0, .7); color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; max-width: 86vw; text-align: center; pointer-events: none; z-index: 1; }
+.p-note { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 112px); transform: translateX(-50%); background: rgba(0, 0, 0, .7); color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; max-width: 86vw; text-align: center; pointer-events: none; z-index: 1; }
 .p-zap { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 72px); left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, .7); border-radius: 10px; padding: 10px 16px; font-size: 15px; font-weight: 500; pointer-events: none; max-width: 80vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .p-cast { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: rgba(255, 255, 255, .85); padding: 24px; }
 .p-cast .i { width: 56px; height: 56px; margin: 0 auto 10px; }
@@ -446,6 +446,79 @@ html.tv .p-chl-h b { font-size: 26px; }
 html.tv .p-chl-tabs .tab { height: 42px; font-size: 15px; }
 html.tv .pc-row .av { width: 58px; height: 58px; }
 html.tv .pc-row .num { width: 36px; font-size: 15px; }
+
+/* fascia informazioni del lettore, in stile guida TV: diretta, programma in onda, quanto manca, cosa viene dopo */
+.p-nm { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.p-num { flex: none; font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; line-height: 1; padding: 5px 9px; border-radius: 8px; background: rgba(255, 255, 255, .16); color: #fff; }
+#pName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-epg { gap: 5px; padding-right: 6px; }
+.p-epg.tap { cursor: pointer; border-radius: 12px; }
+.p-epg.tap:hover, .p-epg.tap:focus-visible { background: rgba(255, 255, 255, .08); outline: none; }
+.pi-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pi-when { font-size: 12.5px; color: rgba(255, 255, 255, .78); font-variant-numeric: tabular-nums; }
+.pi-t { font-size: 16.5px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pi-n { font-size: 12.5px; color: rgba(255, 255, 255, .72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pi-n b { color: rgba(255, 255, 255, .95); font-weight: 700; letter-spacing: .3px; }
+.pi-more { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+.p-epg .pb { max-width: 340px; margin: 1px 0; }
+html.tv .pi-t { font-size: 22px; }
+html.tv .pi-when, html.tv .pi-n, html.tv .pi-more { font-size: 15px; }
+html.tv .p-num { font-size: 17px; padding: 6px 12px; }
+.p-chl-seg { display: flex; gap: 4px; background: rgba(243, 235, 221, .07); border-radius: 500px; padding: 3px; }
+.p-chl-seg button { border: 0; background: none; color: var(--muted); font: 700 14px/1 var(--font); padding: 9px 18px; border-radius: 500px; cursor: pointer; }
+.p-chl-seg button.on { background: var(--fg); color: var(--bg); }
+.p-chl-sub { display: flex; align-items: center; gap: 12px; padding: 4px 18px 10px; }
+.p-chl-sub .av { width: 40px; height: 40px; border-radius: 10px; }
+.p-chl-sub .tx { min-width: 0; }
+.p-chl-sub .tx b { display: block; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-chl-sub .tx small { color: var(--muted); font-size: 12.5px; }
+.pe-day { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 14px 12px 6px; }
+.pe-row { display: flex; align-items: flex-start; gap: 14px; width: 100%; border: 0; background: none; color: var(--fg); text-align: left; padding: 11px 12px; border-radius: 12px; cursor: pointer; }
+.pe-row:hover, .pe-row:focus-visible { background: rgba(243, 235, 221, .08); outline: none; }
+.pe-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.pe-row.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.pe-h { flex: none; width: 56px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-top: 1px; }
+.pe-h b { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pe-h em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .08em; background: var(--accent); color: var(--on-accent); padding: 2px 6px; border-radius: 4px; }
+.pe-row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pe-row .tx b { font-size: 15.5px; font-weight: 600; line-height: 1.3; }
+.pe-row .tx small { font-size: 12.5px; color: var(--muted); }
+.pe-row .tx small.desc { line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pe-row.on .tx b { color: var(--accent); }
+.pe-row .pb { max-width: 220px; margin-top: 4px; }
+html.tv .p-chl-seg button { font-size: 17px; padding: 11px 24px; }
+html.tv .pe-row { padding: 14px; }
+html.tv .pe-row .tx b { font-size: 19px; }
+html.tv .pe-row .tx small { font-size: 15px; }
+html.tv .pe-h { width: 70px; } html.tv .pe-h b { font-size: 18px; }
+.p-bot { gap: 6px; }
+.p-row { justify-content: flex-end; }
+.p-epg { width: 100%; padding: 6px 10px; gap: 4px; }
+.pi-top { flex-wrap: nowrap; }
+.pi-when { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pi-more { margin-left: auto; white-space: nowrap; flex: none; }
+.pi-t { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.p-epg .pb { max-width: none; }
+@media (min-width: 700px) { .p-epg { max-width: 760px; } }
+html.tv .p-epg { max-width: 900px; padding: 10px 14px; }
+.opt-g { padding: 6px 0 10px; }
+.opt-h { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 10px 20px 6px; }
+.opt-b { display: flex; align-items: center; gap: 16px; width: 100%; border: 0; background: none; color: var(--fg); text-align: left; padding: 11px 20px; min-height: 52px; cursor: pointer; font: inherit; }
+.opt-b:hover, .opt-b:focus-visible { background: var(--surface-2); outline: none; }
+.opt-r { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--muted); position: relative; }
+.opt-b.on .opt-r { border-color: var(--accent); }
+.opt-b.on .opt-r::after { content: ""; position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px; border-radius: 50%; background: var(--accent); }
+.opt-b .tx b { display: block; font-weight: 500; font-size: 15px; }
+.opt-b .tx small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.opt-b.on .tx b { color: var(--accent); font-weight: 700; }
+.opt-none { margin: 0; padding: 14px 20px 18px; color: var(--muted); line-height: 1.5; }
+html.tv .opt-b { min-height: 64px; } html.tv .opt-b .tx b { font-size: 18px; } html.tv .opt-h { font-size: 15px; }
+/* la fascia ha un fondo suo: il testo resta leggibile anche su immagini chiare */
+.p-bot { background: linear-gradient(transparent, rgba(0, 0, 0, .5) 38%, rgba(0, 0, 0, .9)); }
+.p-epg { background: rgba(0, 0, 0, .42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 14px; }
+.p-epg:empty { display: none; }
+.p-epg.tap:hover, .p-epg.tap:focus-visible { background: rgba(0, 0, 0, .58); }
+html.tv .p-epg { background: rgba(0, 0, 0, .5); border-radius: 18px; }
 </style>
 
 </head>
@@ -486,7 +559,7 @@ html.tv .pc-row .num { width: 36px; font-size: 15px; }
   <div class="p-ui" id="pUi">
     <div class="p-top">
       <button class="ib" id="pBack" type="button" aria-label="Chiudi il lettore"></button>
-      <div class="p-title"><div id="pName"></div><div id="pSub"></div></div>
+      <div class="p-title"><div class="p-nm"><span class="p-num" id="pNum" hidden></span><span id="pName"></span></div><div id="pSub"></div></div>
       <button class="ib" id="pFav" type="button" aria-label="Preferito"></button>
       <button class="ib" id="pCast" type="button" aria-label="Trasmetti alla TV" hidden></button>
       <button class="ib" id="pPip" type="button" aria-label="Picture in picture" hidden></button>
@@ -499,10 +572,11 @@ html.tv .pc-row .num { width: 36px; font-size: 15px; }
     </div>
     <div class="p-bot">
       <button class="p-golive" id="pLive" type="button" hidden>Torna alla diretta</button>
+      <div class="p-epg" id="pEpg"></div>
       <div class="p-seek" id="pSeek" hidden><span id="pCur">0:00</span><input type="range" id="pRange" min="0" max="1000" value="0" aria-label="Posizione"><span id="pDur">0:00</span></div>
       <div class="p-row">
-        <div class="p-epg" id="pEpg"></div>
         <button class="ib" id="pChBtn" type="button" aria-label="Lista dei canali" title="Lista dei canali"></button>
+        <button class="ib" id="pOpt" type="button" aria-label="Audio, sottotitoli e qualità" title="Audio, sottotitoli e qualità"></button>
         <button class="ib" id="pMute" type="button" aria-label="Audio"></button>
         <button class="ib" id="pFit" type="button" aria-label="Formato immagine"></button>
         <button class="ib" id="pFull" type="button" aria-label="Schermo intero"></button>
@@ -512,7 +586,14 @@ html.tv .pc-row .num { width: 36px; font-size: 15px; }
   <div class="p-zap" id="pZap" hidden></div>
   <aside class="p-chl" id="pChl" hidden aria-label="Lista dei canali">
     <div class="p-chl-grab"></div>
-    <div class="p-chl-h"><b>Canali</b><button class="ib" id="pChlX" type="button" aria-label="Chiudi la lista"></button></div>
+    <div class="p-chl-h">
+      <div class="p-chl-seg" id="pChlSeg" role="tablist">
+        <button type="button" role="tab" data-m="ch">Canali</button>
+        <button type="button" role="tab" data-m="epg">Programmi</button>
+      </div>
+      <button class="ib" id="pChlX" type="button" aria-label="Chiudi"></button>
+    </div>
+    <div class="p-chl-sub" id="pChlSub" hidden></div>
     <div class="p-chl-tabs" id="pChlTabs" role="tablist"></div>
     <div class="p-chl-list" id="pChlList"></div>
   </aside>
@@ -868,6 +949,7 @@ new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) renderMore(
 const layers = []; let skipPop = 0, armed = false, backT = 0;
 function arm() { if (FRAMED || armed) return; try { history.pushState({ tivu: 1 }, ""); armed = true; } catch (e) {} }
 function pushLayer(closeFn) {
+  if (!$("player").hidden && P.layer) note("");   // si apre qualcosa sopra il lettore: via l'avviso, altrimenti si sovrappone
   const L = { closeFn, open: true, focus: document.activeElement }; layers.push(L);
   clearTimeout(backT); backT = 0; arm();
   return L;
@@ -1058,6 +1140,17 @@ async function fetchEpg(urls, chans, onProgress) {
   }
   for (const k in out) { out[k].sort((x, y) => x.s - y.s); const seen = new Set(); out[k] = out[k].filter(p => !seen.has(p.s) && seen.add(p.s)).slice(0, 140); }
   return out;
+}
+function leftLabel(ms) {
+  const m = Math.round(ms / 60000);
+  if (m <= 0) return "sta per finire";
+  if (m < 60) return "ancora " + m + " min";
+  const o = Math.floor(m / 60), r = m % 60;
+  return "ancora " + o + "h" + (r ? " " + r + "min" : "");
+}
+function durLabel(p) {
+  const m = Math.max(1, Math.round((p.e - p.s) / 60000));
+  return m < 60 ? m + " min" : Math.floor(m / 60) + "h" + (m % 60 ? " " + (m % 60) + "min" : "");
 }
 function nowNext(ch) {
   const L = S.epg[ch.key]; if (!L || !L.length) return null; const t = Date.now();
@@ -1356,13 +1449,15 @@ function dayLabel(t) {
   const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - today) / 864e5);
   return diff === 0 ? "Oggi" : diff === 1 ? "Domani" : d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" });
 }
-function progSheet(ch, p) {
+function progSheet(ch, p, inPanel) {
   const t = Date.now(), on = p.s <= t && p.e > t;
   const body = h("div", { style: "padding:4px 20px 12px" },
-    h("p", { style: "margin:0 0 6px;color:var(--muted);font-size:13.5px", text: dayLabel(p.s) + " · " + hm(p.s) + "–" + hm(p.e) + (on ? " · in onda" : "") }),
-    p.d ? h("p", { style: "margin:0;line-height:1.5", text: p.d }) : null);
-  sheet(h("div", { class: "sh-head" }, avatar(ch), h("div", { class: "tx" }, h("b", { text: p.t }), h("small", { text: ch.name }))),
-    [{ node: body }, { icon: "play", label: on ? "Guarda adesso" : "Guarda " + ch.name, run: () => openChannel(ch) }, ...(S.epg[ch.key] ? [{ icon: "guide", label: "Tutta la programmazione di " + ch.name, run: () => guideSheet(ch) }] : [])]);
+    h("p", { style: "margin:0 0 6px;color:var(--muted);font-size:13.5px", text: dayLabel(p.s) + " · " + hm(p.s) + "–" + hm(p.e) + " · " + durLabel(p) + (on ? " · in onda" : " · tra " + leftLabel(p.s - t).replace(/^ancora /, "")) }),
+    p.d ? h("p", { style: "margin:0;line-height:1.5", text: p.d }) : h("p", { style: "margin:0;color:var(--muted)", text: "Nessuna descrizione." }));
+  const items = [{ node: body }];
+  if (!inPanel || ch !== P.ch) items.push({ icon: "play", label: on ? "Guarda adesso" : "Guarda " + ch.name, run: () => openChannel(ch) });
+  if (!inPanel && S.epg[ch.key]) items.push({ icon: "guide", label: "Tutta la programmazione di " + ch.name, run: () => { if ($("player").hidden || ch !== P.ch) guideSheet(ch); else openChPanel("epg"); } });
+  sheet(h("div", { class: "sh-head" }, avatar(ch), h("div", { class: "tx" }, h("b", { text: p.t }), h("small", { text: ch.name }))), items);
 }
 
 // ======================= app esterne =======================
@@ -1899,10 +1994,22 @@ function updatePlayerInfo() {
   $("pName").textContent = ch.name; $("pSub").textContent = [ch.group, S.pl && S.pl.name].filter(Boolean).join(" · ");
   setIcon($("pFav"), isFav(ch) ? "star" : "starO"); $("pFav").style.color = isFav(ch) ? "var(--star)" : "";
   $("pFav").setAttribute("aria-label", isFav(ch) ? "Togli dai preferiti" : "Aggiungi ai preferiti");
-  const box = $("pEpg"); box.replaceChildren(); const x = nowNext(ch); box.classList.toggle("tap", !!(S.epg[ch.key] && S.epg[ch.key].length));
-  if (x && x.now) { box.append(h("div", { class: "now", text: hm(x.now.s) + " " + x.now.t }), h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" }))); if (x.next) box.append(h("div", { class: "next", text: "Dopo: " + hm(x.next.s) + " " + x.next.t })); }
-  else if (x && x.next) box.append(h("div", { class: "next", text: "Alle " + hm(x.next.s) + ": " + x.next.t }));
-  else if (plan(ch.url).live) box.append(h("div", { class: "p-live", text: "DIRETTA" }));
+  const num = $("pNum"); num.hidden = !(ch.i >= 0); if (ch.i >= 0) num.textContent = ch.i + 1;
+  const box = $("pEpg"); box.replaceChildren(); const x = nowNext(ch);
+  const hasEpg = !!(S.epg[ch.key] && S.epg[ch.key].length);
+  box.classList.toggle("tap", hasEpg);
+  box.setAttribute("role", hasEpg ? "button" : "presentation");
+  box.setAttribute("tabindex", hasEpg ? "0" : "-1");
+  box.setAttribute("aria-label", hasEpg ? "Programmazione di " + ch.name : "");
+  if (x && x.now) {
+    box.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), h("span", { class: "pi-when", text: hm(x.now.s) + "–" + hm(x.now.e) + " · " + leftLabel(x.now.e - Date.now()) }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    box.append(h("div", { class: "pi-t", text: x.now.t }));
+    box.append(h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" })));
+    if (x.next) box.append(h("div", { class: "pi-n" }, h("b", { text: "Dopo" }), " " + hm(x.next.s) + " · " + x.next.t));
+  } else if (x && x.next) {
+    box.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    box.append(h("div", { class: "pi-n" }, h("b", { text: "Alle " + hm(x.next.s) }), " " + x.next.t));
+  } else if (plan(ch.url).live) box.append(h("div", { class: "p-live", text: "DIRETTA" }));
 }
 function updateSeek() {
   const d = video.duration, show = !!P.ch && isFinite(d) && d > 0 && kindOf(P.ch.url) !== "ts";
@@ -1948,7 +2055,7 @@ document.addEventListener("fullscreenchange", () => setIcon($("pFull"), document
   on("pPip", () => { try { document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture().catch(() => toast("Picture in picture non disponibile")); } catch (e) {} });
   on("pMute", () => { video.muted = !video.muted; });
   on("pFit", () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); });
-  on("pFull", toggleFull);
+  on("pFull", toggleFull); setIcon($("pOpt"), "settings"); on("pOpt", playerOptions);
   const pl = $("player"); let sx = 0, sy = 0, st = 0, moved = 0;
   pl.addEventListener("scroll", () => { if (pl.scrollTop || pl.scrollLeft) { pl.scrollTop = 0; pl.scrollLeft = 0; } });   // moved: quando e' finito l'ultimo gesto (il tocco che lo segue subito va ignorato)
   // il gesto vale ovunque sul video, anche partendo sopra i pulsanti (un tocco fermo sui pulsanti resta un tocco);
@@ -2020,6 +2127,8 @@ function helpDialog() {
     h("ul", { class: "help" },
       li("Guardare un canale:", "toccalo. Nel lettore scorri a sinistra per il canale successivo e a destra per il precedente; tocca due volte per lo schermo intero."),
       li("Tutti i canali mentre guardi:", "scorri in su sul video (o tocca il pulsante ☰ in basso, o OK sul telecomando): dal basso esce la tendina con tutti i canali, quello in onda è evidenziato. Il video continua; per chiuderla trascinala in giù."),
+      li("Cosa c'è adesso e dopo:", "in basso nel lettore vedi il programma in onda, quanto manca alla fine e cosa viene dopo. Toccalo (o scegli «Programmi» nella tendina) per tutta la programmazione del canale, ora per ora."),
+      li("Audio, sottotitoli e qualità:", "tocca l'ingranaggio nel lettore. Se il canale ha più lingue, sottotitoli o più qualità video, le trovi lì; altrimenti l'app te lo dice."),
       li("Preferiti:", "tocca la stella nel lettore, oppure tieni premuto un canale (o tocca ⋮ nella vista elenco) e scegli «Aggiungi ai preferiti»."),
       li("Guida TV:", "tocca l'orologio in alto per vedere cosa c'è adesso e nelle prossime ore su tutti i canali. Tocca un programma per i dettagli."),
       li("Gruppi:", "le pillole in alto (Nazionali, Sport…) filtrano i canali; puoi anche scorrere a destra o a sinistra sull'elenco."),
@@ -2038,24 +2147,104 @@ function helpDialog() {
   ], actions: [{ label: "Ho capito", primary: true }] });
 }
 
+// ======================= audio, sottotitoli e qualita' =======================
+const LANGS = { it: "Italiano", ita: "Italiano", en: "Inglese", eng: "Inglese", fr: "Francese", fre: "Francese", fra: "Francese",
+  de: "Tedesco", ger: "Tedesco", deu: "Tedesco", es: "Spagnolo", spa: "Spagnolo", pt: "Portoghese", por: "Portoghese",
+  ru: "Russo", rus: "Russo", ar: "Arabo", ara: "Arabo", zh: "Cinese", chi: "Cinese", zho: "Cinese", ja: "Giapponese", jpn: "Giapponese",
+  nl: "Olandese", dut: "Olandese", nld: "Olandese", pl: "Polacco", pol: "Polacco", ro: "Rumeno", rum: "Rumeno", ron: "Rumeno",
+  sq: "Albanese", alb: "Albanese", sqi: "Albanese", el: "Greco", gre: "Greco", ell: "Greco", tr: "Turco", tur: "Turco",
+  hr: "Croato", sr: "Serbo", uk: "Ucraino", ukr: "Ucraino", hi: "Hindi", mul: "Più lingue", und: "Lingua sconosciuta", qaa: "Originale" };
+function langName(code) { if (!code) return ""; const k = String(code).toLowerCase().replace("_", "-").split("-")[0]; return LANGS[k] || String(code).toUpperCase(); }
+function trackName(t, i, kind) {
+  const l = langName(t.lang || t.language), n = (t.name || t.label || "").trim();
+  if (n && l && !n.toLowerCase().includes(l.toLowerCase())) return l + " · " + n;
+  return n || l || (kind === "sub" ? "Sottotitoli " : "Traccia ") + (i + 1);
+}
+function qName(l) {
+  const h = l.height || (l.width ? Math.round(l.width * 9 / 16) : 0);
+  const mb = l.bitrate ? Math.round(l.bitrate / 100000) / 10 : 0;
+  return (h ? h + "p" : mb ? "Qualità" : "Qualità " ) + (mb ? "  ·  " + mb + " Mb/s" : "");
+}
+// gruppo di scelte a pallino, come nelle impostazioni di un lettore vero
+function optGroup(title, opts, cur, pick, close) {
+  const box = h("div", { class: "opt-g" }, h("div", { class: "opt-h", text: title }));
+  opts.forEach(o => {
+    const on = o.v === cur;
+    box.append(h("button", { class: "opt-b" + (on ? " on" : ""), type: "button", role: "radio", "aria-checked": String(on),
+      onclick: () => { pick(o.v); close(); } }, h("span", { class: "opt-r" }), h("span", { class: "tx" }, h("b", { text: o.label }), o.sub ? h("small", { text: o.sub }) : null)));
+  });
+  return box;
+}
+function playerOptions() {
+  const hls = P.hls, dp = P.dash, nodes = [];
+  let any = false;
+  const later = [];
+  const add = n => { nodes.push({ node: n }); any = true; };
+  // --- audio
+  if (hls && hls.audioTracks && hls.audioTracks.length > 1) {
+    add(optGroup("Audio", hls.audioTracks.map((t, i) => ({ v: i, label: trackName(t, i) })), hls.audioTrack, v => { try { hls.audioTrack = v; } catch (e) {} }, () => closeLayer(L)));
+  } else if (dp && dp.getTracksFor) {
+    const tr = (dp.getTracksFor("audio") || []);
+    if (tr.length > 1) {
+      const cur = dp.getCurrentTrackFor && dp.getCurrentTrackFor("audio");
+      add(optGroup("Audio", tr.map((t, i) => ({ v: i, label: trackName({ lang: t.lang, name: (t.labels && t.labels[0] && t.labels[0].text) || "" }, i) })), tr.indexOf(cur), v => { try { dp.setCurrentTrack(tr[v]); } catch (e) {} }, () => closeLayer(L)));
+    }
+  }
+  // --- sottotitoli
+  if (hls && hls.subtitleTracks && hls.subtitleTracks.length) {
+    const o = [{ v: -1, label: "Nessuno" }].concat(hls.subtitleTracks.map((t, i) => ({ v: i, label: trackName(t, i, "sub") })));
+    add(optGroup("Sottotitoli", o, hls.subtitleDisplay === false ? -1 : hls.subtitleTrack, v => { try { hls.subtitleDisplay = v >= 0; hls.subtitleTrack = v; } catch (e) {} }, () => closeLayer(L)));
+  } else {
+    const tt = [...(video.textTracks || [])].filter(t => t.kind === "subtitles" || t.kind === "captions");
+    if (tt.length) {
+      const cur = tt.findIndex(t => t.mode === "showing");
+      const o = [{ v: -1, label: "Nessuno" }].concat(tt.map((t, i) => ({ v: i, label: trackName({ lang: t.language, name: t.label }, i, "sub") })));
+      add(optGroup("Sottotitoli", o, cur, v => tt.forEach((t, i) => { t.mode = i === v ? "showing" : "disabled"; }), () => closeLayer(L)));
+    }
+  }
+  // --- qualita' video
+  if (hls && hls.levels && hls.levels.length > 1) {
+    const auto = hls.autoLevelEnabled, lv = hls.levels;
+    const o = [{ v: -1, label: "Automatica", sub: auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione" }]
+      .concat(lv.map((l, i) => ({ v: i, label: qName(l) })).reverse());
+    add(optGroup("Qualità video", o, auto ? -1 : hls.currentLevel, v => { try { hls.currentLevel = v; if (v >= 0) hls.loadLevel = v; } catch (e) {} }, () => closeLayer(L)));
+  } else if (dp && dp.getBitrateInfoListFor) {
+    const lv = dp.getBitrateInfoListFor("video") || [];
+    if (lv.length > 1) {
+      const auto = !(dp.getSettings && dp.getSettings().streaming.abr.autoSwitchBitrate.video === false);
+      const o = [{ v: -1, label: "Automatica", sub: "si adatta alla connessione" }].concat(lv.map((l, i) => ({ v: i, label: qName(l) })).reverse());
+      add(optGroup("Qualità video", o, auto ? -1 : (dp.getQualityFor ? dp.getQualityFor("video") : -1), v => {
+        try { dp.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: v < 0 } } } }); if (v >= 0) dp.setQualityFor("video", v, true); } catch (e) {}
+      }, () => closeLayer(L)));
+    }
+  }
+  if (!any) add(h("p", { class: "opt-none", text: "Questo canale offre una sola versione: nessuna scelta di audio, sottotitoli o qualità." }));
+  nodes.push({ icon: "aspect", label: "Formato immagine: " + FIT_LABEL[fit], run: () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); } });
+  if (!FRAMED && P.ch && kindOf(P.ch.url) !== "file" && kindOf(P.ch.url) !== "dash") nodes.push({ icon: "tv", label: "Guarda con il decodificatore avanzato", run: () => openChannel(P.ch, true, true) });
+  nodes.push({ icon: "ext", label: "Apri in un'altra app (VLC…)", run: () => { video.pause(); openExternal(P.ch); } });
+  const L = sheet(h("div", { class: "sh-head" }, icon("settings"), h("div", { class: "tx" }, h("b", { text: "Audio e qualità" }), h("small", { text: P.ch ? P.ch.name : "" }))), nodes);
+}
+
 // ======================= lista dei canali dentro il lettore =======================
 // Mentre si guarda: scorrere in su (o il pulsante «Canali», o OK sul telecomando) fa uscire dal basso la tendina con tutti
 // i canali, quello in onda evidenziato. Il video continua; un tocco su un canale lo cambia, trascinarla in giu' la chiude.
-const CH = { open: false, layer: null, tab: null, list: [], shown: 0, io: null };
+const CH = { open: false, layer: null, mode: "ch", tab: null, list: [], shown: 0, io: null };
 function chPanelTabs() {
   const t = tabsList();
   if (P.listTab && P.listTab.startsWith("q:")) t.unshift({ id: P.listTab, label: "Ricerca «" + P.listTab.slice(2) + "»" });
   return t;
 }
 function chListFor(tab) { return tab.startsWith("q:") ? listFor(TAB_ALL, tab.slice(2)) : listFor(tab, ""); }
-function openChPanel() {
-  if (CH.open || $("player").hidden) return;
+function openChPanel(mode) {
+  if ($("player").hidden) return;
+  if (CH.open) { if (mode && mode !== CH.mode) { CH.mode = mode; renderChPanel(); } return; }
+  CH.mode = mode || "ch";
   CH.open = true; $("pUi").classList.remove("show"); clearTimeout(P.hideT);
   if (/^Scorri /.test($("pNote").textContent)) note("");
   const panel = $("pChl"); panel.hidden = false; panel.classList.remove("out"); $("player").classList.add("chl-open");
   // la scheda di partenza e' quella da cui viene il canale in onda (se il canale e' li')
   CH.tab = TAB_ALL;   // la tendina mostra tutti i canali; le pillole servono per filtrare
-  renderChTabs(); renderChList(true);
+  renderChPanel();
   CH.layer = pushLayer(() => {
     CH.open = false; CH.layer = null; if (CH.io) CH.io.disconnect(); $("player").classList.remove("chl-open");
     panel.classList.add("out"); setTimeout(() => { if (!CH.open) panel.hidden = true; }, 180);
@@ -2063,6 +2252,44 @@ function openChPanel() {
   if (!store.get("chlHint2", false)) store.set("chlHint2", true);
 }
 function closeChPanel() { if (CH.layer) closeLayer(CH.layer); }
+function renderChPanel() {
+  const epg = CH.mode === "epg";
+  for (const b of $("pChlSeg").children) { const on = b.dataset.m === CH.mode; b.setAttribute("aria-selected", String(on)); b.classList.toggle("on", on); }
+  $("pChlTabs").hidden = epg;
+  const sub = $("pChlSub"); sub.hidden = !epg;
+  if (epg) { sub.replaceChildren(avatar(P.ch), h("div", { class: "tx" }, h("b", { text: P.ch.name }), h("small", { text: "Programmazione da adesso" }))); renderEpgList(); }
+  else { renderChTabs(); renderChList(true); }
+}
+// programmazione del canale in onda, da adesso in poi
+function renderEpgList() {
+  const box = $("pChlList"); box.replaceChildren(); box.scrollTop = 0;
+  const ch = P.ch, L = (S.epg[ch.key] || []), t = Date.now();
+  const list = L.filter(p => p.e > t);
+  if (!list.length) {
+    const has = S.pl && epgUrls(S.pl).length;
+    box.append(h("div", { class: "p-chl-empty" },
+      h("p", { text: has ? "Per questo canale non c'è la programmazione. Prova ad aggiornare la guida TV dal menu ⋮." : "Questa playlist non indica una guida TV." })));
+    return;
+  }
+  let day = "", first = null;
+  const frag = document.createDocumentFragment();
+  for (const p of list) {
+    const d = dayLabel(p.s);
+    if (d !== day) { day = d; frag.append(h("div", { class: "pe-day", text: d })); }
+    const live = p.s <= t && p.e > t;
+    const tx = h("span", { class: "tx" }, h("b", { text: p.t }),
+      h("small", { text: durLabel(p) + (live ? " · " + leftLabel(p.e - t) : "") }),
+      p.d ? h("small", { class: "desc", text: p.d }) : null,
+      live ? h("span", { class: "pb" }, h("i", { style: "width:" + Math.round((t - p.s) / (p.e - p.s) * 100) + "%" })) : null);
+    const row = h("button", { class: "pe-row" + (live ? " on" : ""), type: "button" },
+      h("span", { class: "pe-h" }, h("b", { text: hm(p.s) }), live ? h("em", { text: "ORA" }) : null), tx);
+    row.onclick = () => progSheet(ch, p, true);
+    if (live && !first) first = row;
+    frag.append(row);
+  }
+  box.append(frag);
+  if (first) requestAnimationFrame(() => { first.focus({ preventScroll: true }); });
+}
 function renderChTabs() {
   const box = $("pChlTabs"); box.replaceChildren();
   for (const t of chPanelTabs()) {
@@ -2109,7 +2336,8 @@ function renderChList(reset) {
 }
 (() => {
   setIcon($("pChBtn"), "list"); setIcon($("pChlX"), "close");
-  $("pChBtn").addEventListener("click", e => { e.stopPropagation(); openChPanel(); });
+  $("pChBtn").addEventListener("click", e => { e.stopPropagation(); openChPanel("ch"); });
+  for (const b of $("pChlSeg").children) b.addEventListener("click", e => { e.stopPropagation(); if (CH.mode !== b.dataset.m) { CH.mode = b.dataset.m; renderChPanel(); } });
   $("pChlX").addEventListener("click", e => { e.stopPropagation(); closeChPanel(); });
   // nel pannello: scorrere verso destra lo chiude
   const pn = $("pChl"); let x0 = 0, y0 = 0;
@@ -2294,7 +2522,9 @@ $("q").addEventListener("keydown", e => { if (e.key === "Enter") $("q").blur(); 
   setIcon($("btnMenu"), "menu"); setIcon($("btnSearch"), "search"); setIcon($("btnCast"), "cast"); setIcon($("btnMore"), "more");
   setIcon($("btnSearchBack"), "back"); setIcon($("btnSearchClear"), "close");
   $("btnMenu").onclick = openDrawer; $("btnSearch").onclick = openSearch; $("btnMore").onclick = moreMenu; setIcon($("btnGuide"), "guide"); $("btnGuide").onclick = () => openEpgGrid();
-  $("pEpg").addEventListener("click", e => { if (P.ch && S.epg[P.ch.key] && S.epg[P.ch.key].length) { e.stopPropagation(); guideSheet(P.ch); } });
+  const openProg = e => { if (P.ch && S.epg[P.ch.key] && S.epg[P.ch.key].length) { e.stopPropagation(); openChPanel("epg"); } };
+  $("pEpg").addEventListener("click", openProg);
+  $("pEpg").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProg(e); } });
   $("btnSearchBack").onclick = () => closeLayer(searchLayer);
   $("btnSearchClear").onclick = () => { $("q").value = ""; S.q = ""; render(true); $("q").focus(); };
   $("btnView").onclick = () => { CFG.view = CFG.view === "grid" ? "rows" : "grid"; saveCfg(); applyCfg(); const top = $("main").scrollTop; render(true); $("main").scrollTop = top; };
