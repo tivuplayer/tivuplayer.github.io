@@ -758,6 +758,15 @@ async function* textChunks(resp) {
   const rd = stream.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) { const r = await rd.read(); if (r.done) break; yield r.value; }
 }
+// Molti server delle guide TV non permettono la lettura da un sito web (CORS). Una procedura automatica di GitHub
+// (.github/workflows/epg.yml nel repository del sito) ne scarica una copia ogni poche ore nel ramo «epg»; qui si prova
+// prima quella copia (stesso file, nessun server), poi l'indirizzo originale.
+const EPG_MIRROR = "https://raw.githubusercontent.com/tivuplayer/tivuplayer.github.io/epg/";
+function epgMirrorName(url) { return url.replace(/^https?:\/\//i, "").replace(/[?#].*$/, "").replace(/[^A-Za-z0-9.]+/g, "_"); }
+async function fetchEpgFile(url) {
+  try { const r = await fetch(EPG_MIRROR + epgMirrorName(url), { cache: "no-store" }); if (r.ok) return r; } catch (e) {}
+  return fetchSmart(url);
+}
 async function fetchEpg(urls, chans, onProgress) {
   const byId = new Map(), byName = new Map();
   for (const c of chans) {
@@ -782,7 +791,7 @@ async function fetchEpg(urls, chans, onProgress) {
     nProg++;
   }
   for (const url of urls) {
-    const resp = await fetchSmart(url); let buf = "", total = 0;
+    const resp = await fetchEpgFile(url); let buf = "", total = 0;
     for await (const chunk of textChunks(resp)) {
       buf += chunk; total += chunk.length; let pos = 0;
       for (;;) {

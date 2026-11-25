@@ -1,0 +1,2 @@
+# Guide TV da copiare ogni poche ore nel ramo «epg» (un indirizzo per riga).
+# Le guide indicate in lista.m3u (url-tvg / x-tvg-url) si aggiungono da sole.
