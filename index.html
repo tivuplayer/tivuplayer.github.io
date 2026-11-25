@@ -1327,8 +1327,20 @@ function altSources(ch) {
       out.push({ name: ch.name + " (dallo stesso server di «" + c.name + "»)", url: u, key: c.key + ">" + num, derived: true });
     }
   }
+  // stessa idea per i canali «fratelli» con un nome simile (LA7.HD.it e La7d.it): se l'indirizzo dell'altro contiene il suo
+  // nome come cartella (.../LA7D/DASH/Live.mpd), si prova la cartella con il nome di questo canale (.../LA7/DASH/Live.mpd)
+  const A = idStem(id);
+  if (A.length >= 3) for (const c of S.chans || []) {
+    const B = idStem(c.tvgId || ""); if (!B || B === A || /relinker|mediapolis/i.test(c.url)) continue;
+    if (!(B.startsWith(A) || A.startsWith(B)) || Math.abs(A.length - B.length) > 2) continue;
+    let hit = false;
+    const u = c.url.replace(/\/([^/?#]+)(?=\/)/g, (all, seg) => { if (hit || seg.toLowerCase() !== B) return all; hit = true; return "/" + (seg === seg.toUpperCase() ? A.toUpperCase() : seg === seg.toLowerCase() ? A : A); });
+    if (!hit || seen.has(u)) continue; seen.add(u);
+    out.push({ name: ch.name + " (dallo stesso server di «" + c.name + "»)", url: u, key: c.key + ">" + A, derived: true });
+  }
   return out;
 }
+function idStem(id) { return String(id).toLowerCase().replace(/\.(hd|fhd|uhd|sd|4k)(?=\.|$)/g, "").replace(/\.[a-z]{2}$/, "").replace(/[^a-z0-9]/g, ""); }
 function altRemember(ch, alt) {
   const m = store.get("altsrc") || {}; const cur = m[ch.key];
   if (alt ? cur === alt.url : !cur) return;
