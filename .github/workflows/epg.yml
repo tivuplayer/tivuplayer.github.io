@@ -1,4 +1,4 @@
-# Copia le guide TV (XMLTV) nel ramo «epg», da cui l'app le legge (raw.githubusercontent.com permette la lettura da un sito web).
+# Copia le guide TV (XMLTV) e i loghi dei canali nel ramo «epg», da cui l'app le legge (raw.githubusercontent.com permette la lettura da un sito web).
 # Nessun server: e' una procedura di GitHub che parte ogni 4 ore. Il ramo «epg» viene riscritto ogni volta (niente storico che cresce).
 name: Guida TV
 on:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [lista.m3u, epg-sources.txt, .github/workflows/epg.yml]
+    paths: [lista.m3u, epg-sources.txt, .github/workflows/epg.yml, tools/logos.py]
 permissions:
   contents: write
 concurrency: epg
@@ -34,6 +34,11 @@ jobs:
             fi
           done < sources.txt
           [ "$ok" -gt 0 ] || { echo "::error::nessuna guida scaricata"; exit 1; }
+      - name: Copia i loghi dei canali
+        continue-on-error: true
+        run: |
+          pip install --quiet pillow
+          python3 tools/logos.py lista.m3u out
       - name: Pubblica nel ramo epg
         run: |
           cd out
