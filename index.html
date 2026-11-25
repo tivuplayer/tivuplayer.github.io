@@ -519,6 +519,24 @@ html.tv .opt-b { min-height: 64px; } html.tv .opt-b .tx b { font-size: 18px; } h
 .p-epg:empty { display: none; }
 .p-epg.tap:hover, .p-epg.tap:focus-visible { background: rgba(0, 0, 0, .58); }
 html.tv .p-epg { background: rgba(0, 0, 0, .5); border-radius: 18px; }
+
+/* in finestrella: il lettore sparisce e si usa il resto dell'app, con una barretta in basso */
+#player.pip { opacity: 0; pointer-events: none; }
+html.has-mini #main { padding-bottom: 76px; }
+.mini { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; align-items: center; gap: 4px;
+  padding: 8px max(8px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 8px) max(8px, env(safe-area-inset-left, 0px));
+  background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, .4); animation: up .2s ease-out; }
+.mini-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; background: none; color: var(--fg); text-align: left; padding: 4px 6px; border-radius: 12px; cursor: pointer; }
+.mini-open:hover, .mini-open:focus-visible { background: var(--surface-2); outline: none; }
+.mini-av { flex: none; display: block; }
+.mini-av .av { width: 42px; height: 42px; border-radius: 10px; }
+.mini-av .av b { font-size: 15px; }
+.mini .tx { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mini .tx b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .tx small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.tv .mini { padding-left: var(--tv-x); padding-right: var(--tv-x); }
+html.tv .mini .tx b { font-size: 18px; }
+html.tv.has-mini #main { padding-bottom: 96px; }
 </style>
 
 </head>
@@ -551,8 +569,16 @@ html.tv .p-epg { background: rgba(0, 0, 0, .5); border-radius: 18px; }
   </main>
 </div>
 
+<div class="mini" id="mini" hidden aria-label="In riproduzione">
+  <button class="mini-open" id="miniOpen" type="button">
+    <span class="mini-av" id="miniAv"></span>
+    <span class="tx"><b id="miniName"></b><small id="miniProg"></small></span>
+  </button>
+  <button class="ib" id="miniPlay" type="button" aria-label="Pausa"></button>
+  <button class="ib" id="miniX" type="button" aria-label="Chiudi"></button>
+</div>
 <section class="player" id="player" hidden aria-label="Lettore">
-  <video id="video" playsinline webkit-playsinline preload="auto"></video>
+  <video id="video" playsinline webkit-playsinline preload="auto" autopictureinpicture></video>
   <div class="p-cast" id="pCastInfo" hidden></div>
   <div class="p-spin" id="pSpin" hidden><i></i></div>
   <div class="p-note" id="pNote" hidden></div>
@@ -726,7 +752,7 @@ const DB = (() => {
 })();
 
 // ======================= impostazioni =======================
-const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, tvMode: "auto", proxy: "", proxyVideo: false, sort: "orig" };
+const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, tvMode: "auto", autoPip: true, proxy: "", proxyVideo: false, sort: "orig" };
 const CFG = Object.assign({}, DEF, store.get("settings", {}));
 function saveCfg() { store.set("settings", CFG); }
 function tvOn() { return CFG.tvMode === "on" || (CFG.tvMode !== "off" && IS_TV); }
@@ -1718,7 +1744,7 @@ function decRemember(ch) { const s = decChannels(); if (!s.has(ch.key)) { s.add(
 function note(t) { const n = $("pNote"); if (!n) return; n.textContent = t || ""; n.hidden = !t; }
 
 // ======================= lettore =======================
-const P = { list: [], idx: -1, ch: null, token: 0, hls: null, ts: null, dash: null, started: false, layer: null, hideT: 0, wake: null, retried: false, seeking: false };
+const P = { list: [], idx: -1, ch: null, token: 0, hls: null, ts: null, dash: null, started: false, layer: null, hideT: 0, wake: null, retried: false, seeking: false, pip: false, pipKeep: 0 };
 const video = $("video");
 function openChannel(ch, forceInternal, forceDec) {
   P.forceDec = forceDec ? ch.key : null;
@@ -1731,18 +1757,32 @@ function openPlayer(list, idx) {
   P.list = list;
   if ($("player").hidden) {
     $("player").hidden = false; document.body.style.overflow = "hidden";
-    P.layer = pushLayer(closePlayerNow);
+    P.layer = pushLayer(playerLayerClose);
     try { navigator.wakeLock && navigator.wakeLock.request("screen").then(w => { P.wake = w; }, () => {}); } catch (e) {}
   }
   playIdx(idx);
 }
+function playerLayerClose() {
+  if (P.pip) return;
+  P.layer = null;
+  // «indietro» del telefono: si prova la finestrella, se il browser non la concede si chiude come prima
+  if (CFG.autoPip && !video.paused && pipPossible()) {
+    try {
+      if (video.requestPictureInPicture) { video.requestPictureInPicture().then(() => pipMode(true), () => closePlayerNow()); return; }
+      video.webkitSetPresentationMode("picture-in-picture"); pipMode(true); return;
+    } catch (e) {}
+  }
+  closePlayerNow();
+}
 function closePlayer() { if (P.layer) closeLayer(P.layer); else closePlayerNow(); }
+// «indietro» mentre si guarda: il canale continua in una finestrella e si torna all'app
+function backFromPlayer() { if (CFG.autoPip && !P.pip && pipPossible() && !video.paused && enterPip(true)) return; closePlayer(); }
 function closePlayerNow() {
   if (CH.open) closeChPanel();
   P.token++; netReset(); stopEngines(); note(""); $("pLive").hidden = true; $("player").hidden = true; hideMsg(); $("pCastInfo").hidden = true; P.layer = null;
   try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
   try { if (P.wake) P.wake.release(); } catch (e) {} P.wake = null;
-  try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
+  pipMode(false); exitPip();
 }
 function stopEngines() {
   if (P.hls) { try { P.hls.destroy(); } catch (e) {} P.hls = null; }
@@ -1781,6 +1821,7 @@ function plan(url) {
 async function playIdx(idx) {
   const ch = P.list[idx]; if (!ch) return;
   P.idx = idx; P.ch = ch; P.started = false; P.retried = false; P.step = null; const token = ++P.token; netReset(); $("pLive").hidden = true;
+  if (P.pip) { P.pipKeep = Date.now(); updateMini(); }   // cambio canale dalla barretta: si prova a restare in finestrella
   addRecent(ch); updatePlayerInfo(); hideMsg(); $("pCastInfo").hidden = true; showUi(true);
   stopEngines(); spin(true); setIcon($("pPlay"), "pause"); $("pSeek").hidden = true;
   if ("mediaSession" in navigator) try {
@@ -1823,7 +1864,7 @@ async function playIdx(idx) {
         if (miss) { if (st.e === "hls") await new Promise(r => setTimeout(r, 300)); throw { kind: "format", det: "il browser salta " + miss + " (" + [...P.pmt.v, ...P.pmt.a].join(", ") + ")" }; }
       }
       if (token === P.token) {
-        P.started = true; spin(false); updateSeek(); P.step = st; P.proxied = pl.proxied; netReset();
+        P.started = true; spin(false); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
         altRemember(ch, st.alt); winRemember(ch, st);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note("Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
@@ -2021,8 +2062,8 @@ function updateSeek() {
 video.addEventListener("timeupdate", () => { if (!$("pSeek").hidden || isFinite(video.duration)) updateSeek(); });
 video.addEventListener("durationchange", updateSeek);
 video.addEventListener("waiting", () => { if (P.started) { spin(true); onStall(); } });
-video.addEventListener("playing", () => { spin(false); setIcon($("pPlay"), "pause"); scheduleHide(); });
-video.addEventListener("pause", () => { if (P.autoPause) return; setIcon($("pPlay"), "play"); showUi(true); });
+video.addEventListener("playing", () => { spin(false); setIcon($("pPlay"), "pause"); scheduleHide(); updateMini(); });
+video.addEventListener("pause", () => { updateMini(); if (P.autoPause) return; setIcon($("pPlay"), "play"); showUi(true); });
 video.addEventListener("volumechange", () => setIcon($("pMute"), video.muted ? "volX" : "vol"));
 $("pRange").addEventListener("input", () => { P.seeking = true; const d = video.duration; if (isFinite(d)) $("pCur").textContent = dur($("pRange").value / 1000 * d); showUi(); });
 $("pRange").addEventListener("change", () => { const d = video.duration; if (isFinite(d)) video.currentTime = $("pRange").value / 1000 * d; P.seeking = false; });
@@ -2047,12 +2088,12 @@ document.addEventListener("fullscreenchange", () => setIcon($("pFull"), document
 (() => {   // comandi del lettore
   setIcon($("pBack"), "back"); setIcon($("pPrev"), "prev"); setIcon($("pNext"), "next"); setIcon($("pPlay"), "pause"); setIcon($("pExt"), "ext");
   setIcon($("pCast"), "cast"); setIcon($("pPip"), "pip"); setIcon($("pMute"), "vol"); setIcon($("pFit"), "aspect"); setIcon($("pFull"), "full");
-  $("pPip").hidden = !(document.pictureInPictureEnabled && video.requestPictureInPicture);
+  $("pPip").hidden = !(document.pictureInPictureEnabled && video.requestPictureInPicture) && !(video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function");
   applyFit();
   const on = (id, fn) => $(id).addEventListener("click", e => { e.stopPropagation(); fn(); showUi(); });
-  on("pBack", closePlayer); on("pPrev", () => zap(-1)); on("pNext", () => zap(1)); on("pPlay", togglePlay);
+  on("pBack", backFromPlayer); on("pPrev", () => zap(-1)); on("pNext", () => zap(1)); on("pPlay", togglePlay);
   on("pFav", () => toggleFav(P.ch)); on("pExt", () => { video.pause(); openExternal(P.ch); }); on("pCast", () => castChannel(P.ch));
-  on("pPip", () => { try { document.pictureInPictureElement ? document.exitPictureInPicture() : video.requestPictureInPicture().catch(() => toast("Picture in picture non disponibile")); } catch (e) {} });
+  on("pPip", () => { if (P.pip) openFromMini(); else enterPip(); });
   on("pMute", () => { video.muted = !video.muted; });
   on("pFit", () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); });
   on("pFull", toggleFull); setIcon($("pOpt"), "settings"); on("pOpt", playerOptions);
@@ -2107,6 +2148,7 @@ function settingsDialog() {
     h("div", { class: "set-sec", text: "Riproduzione" }),
     swRow("cfgExt", "Apri i canali in un'altra app", IS_ANDROID ? "Il tocco su un canale apre VLC, MX Player o l'app che scegli." : IS_IOS ? "Il tocco su un canale apre VLC (se installato)." : "Disponibile su Android e iPhone. Sul computer resta il lettore interno.", CFG.player === "external", v => set("player", v ? "external" : "internal")),
     swRow("cfgResume", "Riapri l'ultimo canale all'avvio", null, CFG.resume, v => set("resume", v)),
+    swRow("cfgPip", "Continua in piccolo quando esci dal lettore", "Premendo «indietro», uscendo dall'app o aprendone un'altra, il canale continua in una finestrella e intanto usi il resto dell'app. Dove il browser non lo permette, il lettore si chiude come prima.", CFG.autoPip, v => set("autoPip", v)),
     swRow("cfgSlow", "Internet lento", "Tiene sempre una scorta di video più grande: i canali vanno più fluidi con una connessione debole, ma la diretta arriva con qualche secondo di ritardo. Anche se è spento, l'app aumenta la scorta da sola quando il video si blocca.", CFG.slowNet, v => set("slowNet", v)),
     h("div", { class: "set-sec", text: "Playlist" }),
     swRow("cfgAuto", "Aggiorna da sola le playlist con link", "Quando la apri, se è più vecchia di 24 ore.", CFG.autoRefresh, v => set("autoRefresh", v)),
@@ -2129,6 +2171,7 @@ function helpDialog() {
       li("Tutti i canali mentre guardi:", "scorri in su sul video (o tocca il pulsante ☰ in basso, o OK sul telecomando): dal basso esce la tendina con tutti i canali, quello in onda è evidenziato. Il video continua; per chiuderla trascinala in giù."),
       li("Cosa c'è adesso e dopo:", "in basso nel lettore vedi il programma in onda, quanto manca alla fine e cosa viene dopo. Toccalo (o scegli «Programmi» nella tendina) per tutta la programmazione del canale, ora per ora."),
       li("Audio, sottotitoli e qualità:", "tocca l'ingranaggio nel lettore. Se il canale ha più lingue, sottotitoli o più qualità video, le trovi lì; altrimenti l'app te lo dice."),
+      li("Continua in piccolo:", "premendo «indietro», uscendo dall'app o aprendone un'altra, il canale continua in una finestrella e intanto usi il resto di Tivù Player. In basso resta una barretta con il canale: toccala per tornare al lettore grande, o la ✕ per chiudere. Si disattiva dalle impostazioni."),
       li("Preferiti:", "tocca la stella nel lettore, oppure tieni premuto un canale (o tocca ⋮ nella vista elenco) e scegli «Aggiungi ai preferiti»."),
       li("Guida TV:", "tocca l'orologio in alto per vedere cosa c'è adesso e nelle prossime ore su tutti i canali. Tocca un programma per i dettagli."),
       li("Gruppi:", "le pillole in alto (Nazionali, Sport…) filtrano i canali; puoi anche scorrere a destra o a sinistra sull'elenco."),
@@ -2146,6 +2189,104 @@ function helpDialog() {
     h("p", { text: "Tivù Player non fornisce canali: riproduce le playlist che aggiungi tu. Usa solo contenuti che hai il diritto di guardare." }),
   ], actions: [{ label: "Ho capito", primary: true }] });
 }
+
+// ======================= finestrella (picture in picture) =======================
+// Uscendo dal lettore, dall'app o aprendone un'altra, il canale continua in una finestrella sopra le altre app
+// e intanto il resto di Tivu Player resta usabile: in basso compare una barretta con il canale in onda.
+function pipPossible() {
+  if (FRAMED || !P.ch || $("player").hidden) return false;
+  if (document.pictureInPictureEnabled && video.requestPictureInPicture && !video.disablePictureInPicture) return true;
+  return !!(video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function");
+}
+function enterPip(silent) {
+  if (!pipPossible()) { if (!silent) toast("La finestrella non è disponibile su questo browser"); return false; }
+  if (document.pictureInPictureElement === video) { pipMode(true); return true; }
+  try {
+    if (video.requestPictureInPicture) {
+      video.requestPictureInPicture().then(() => pipMode(true), () => { if (!silent) toast("La finestrella non è disponibile su questo browser"); });
+      return true;
+    }
+    video.webkitSetPresentationMode("picture-in-picture"); pipMode(true); return true;
+  } catch (e) { if (!silent) toast("La finestrella non è disponibile su questo browser"); return false; }
+}
+function exitPip() {
+  try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
+  try { if (video.webkitPresentationMode === "picture-in-picture") video.webkitSetPresentationMode("inline"); } catch (e) {}
+}
+function pipMode(on) {
+  if (on === !!P.pip) return;
+  P.pip = on;
+  const pl = $("player");
+  pl.classList.toggle("pip", on);
+  if (on) {
+    if (CH.open) closeChPanel();
+    document.body.style.overflow = "";
+    if (P.layer) { const L = P.layer; P.layer = null; closeLayer(L); }   // «indietro» torna a usare l'app, non chiude il canale
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    updateMini(); $("mini").hidden = false;
+    document.documentElement.classList.add("has-mini");
+  } else {
+    $("mini").hidden = true; document.documentElement.classList.remove("has-mini");
+    if (!pl.hidden) { document.body.style.overflow = "hidden"; if (!P.layer) P.layer = pushLayer(playerLayerClose); }
+  }
+}
+function updateMini() {
+  if (!P.pip || !P.ch) return;
+  const ch = P.ch, x = nowNext(ch);
+  $("miniAv").replaceChildren(avatar(ch));
+  $("miniName").textContent = ch.name;
+  $("miniProg").textContent = x && x.now ? x.now.t : (ch.group || "");
+  setIcon($("miniPlay"), video.paused ? "play" : "pause");
+  $("miniPlay").setAttribute("aria-label", video.paused ? "Riproduci" : "Pausa");
+}
+// dopo il cambio canale la finestrella era sparita: si riapre, altrimenti si torna al lettore grande
+function backToPip() {
+  if (!P.pip || !P.pipKeep) return;
+  if (document.pictureInPictureElement === video || video.webkitPresentationMode === "picture-in-picture") { P.pipKeep = 0; return; }
+  const tk = P.token;
+  setTimeout(() => {
+    if (!P.pip || P.token !== tk) return;
+    P.pipKeep = 0;
+    if (document.pictureInPictureElement === video) return;
+    try {
+      if (video.requestPictureInPicture) video.requestPictureInPicture().then(() => {}, () => openFromMini());
+      else { video.webkitSetPresentationMode("picture-in-picture"); }
+    } catch (e) { openFromMini(); }
+  }, 120);
+}
+function openFromMini() {   // dalla barretta si torna al lettore grande
+  exitPip(); pipMode(false);
+  if ($("player").hidden && P.ch) openPlayer(P.list.length ? P.list : S.chans, P.idx);
+  showUi(true);
+}
+(() => {
+  video.addEventListener("enterpictureinpicture", () => pipMode(true));
+  video.addEventListener("leavepictureinpicture", () => {
+    if (!P.pip) return;
+    // chiudendo la finestrella il browser mette in pausa: allora si chiude il canale. Se invece sta ancora andando,
+    // vuol dire che si e' tornati all'app e si riapre il lettore grande.
+    if (P.pipKeep && Date.now() - P.pipKeep < 12000) return;   // sta cambiando canale: la finestrella torna da sola
+    setTimeout(() => {
+      if (!P.pip || P.pipKeep) return;
+      if (video.paused) { pipMode(false); closePlayerNow(); } else openFromMini();
+    }, 200);
+  });
+  video.addEventListener("webkitpresentationmodechanged", () => {
+    if (video.webkitPresentationMode === "picture-in-picture") pipMode(true);
+    else if (P.pip) { if (video.paused) { pipMode(false); closePlayerNow(); } else openFromMini(); }
+  });
+  $("miniOpen").addEventListener("click", openFromMini);
+  $("miniPlay").addEventListener("click", e => { e.stopPropagation(); togglePlay(); setTimeout(updateMini, 50); });
+  $("miniX").addEventListener("click", e => { e.stopPropagation(); exitPip(); pipMode(false); closePlayerNow(); });
+  setIcon($("miniX"), "close");
+  // il browser chiede di passare in finestrella quando si esce dall'app
+  if ("mediaSession" in navigator) try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => enterPip(true)); } catch (e) {}
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden || !CFG.autoPip || P.pip || $("player").hidden || video.paused || !pipPossible()) return;
+    enterPip(true);
+  });
+  setInterval(() => { if (P.pip) updateMini(); }, 20000);
+})();
 
 // ======================= audio, sottotitoli e qualita' =======================
 const LANGS = { it: "Italiano", ita: "Italiano", en: "Inglese", eng: "Inglese", fr: "Francese", fre: "Francese", fra: "Francese",
@@ -2557,7 +2698,9 @@ document.addEventListener("keydown", e => {
     else if (k === "f" || k === "F") toggleFull();
     else if (k === "c" || k === "C" || (k === "Enter" && !(document.activeElement && document.activeElement.closest && document.activeElement.closest("#player button")))) { e.preventDefault(); openChPanel(); }
     else if (k === "m" || k === "M") { video.muted = !video.muted; showUi(); }
-    else if (k === "MediaStop" || (isBackKey(e) && !document.fullscreenElement)) { e.preventDefault(); closePlayer(); }
+    else if (k === "MediaStop") { e.preventDefault(); closePlayer(); }
+    else if (k === "Escape" && !document.fullscreenElement) { e.preventDefault(); closePlayer(); }
+    else if (isBackKey(e) && !document.fullscreenElement) { e.preventDefault(); backFromPlayer(); }
     else if (isBackKey(e)) { e.preventDefault(); toggleFull(); }   // a schermo intero, «indietro» torna alla finestra
     else if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); if (isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); } else zap(k === "ArrowRight" ? 1 : -1); }
     else showUi();
