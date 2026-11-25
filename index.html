@@ -10,50 +10,39 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tivù">
-<meta name="theme-color" content="#1b5fb5">
+<meta name="theme-color" content="#1A1714">
 <meta name="description" content="Lettore IPTV nel browser: playlist M3U, canali per gruppi, preferiti, guida TV.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&display=swap">
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-/* Layout: app a schermo intero, barra blu con schede dei gruppi in alto, canali sotto (griglia o elenco), lettore sovrapposto. */
+/* Layout (stile Joy / myTube): app a schermo intero, nome dell'app e schede dei gruppi a pillola in alto, canali sotto (griglia o elenco), lettore sovrapposto. */
 :root {
-  --bar: #1b5fb5;
-  --bar-deep: #154c93;
-  --on-bar: #ffffff;
-  --on-bar-dim: rgba(255, 255, 255, .72);
-  --bg: #eef1f6;
-  --surface: #ffffff;
-  --surface-2: #f3f5f9;
-  --tile: #ffffff;
-  --tile-line: #dfe4ec;
-  --fg: #141b26;
-  --muted: #5a6677;
-  --line: #dde3ec;
-  --accent: #1b66d2;
-  --accent-soft: #e2ebfa;
-  --star: #e09b00;
-  --danger: #c5221f;
-  --scrim: rgba(8, 14, 24, .5);
-  --shadow: 0 10px 30px rgba(10, 22, 44, .22);
-  --font: "Roboto", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  /* stessi colori di Joy e myTube (tema «Vinile»): marrone scuro caldo, accento corallo, testo color crema */
+  --bg-black: #100E0C;
+  --bg: #1A1714;
+  --surface: #211C18;
+  --surface-2: #2E2721;
+  --card: #26211C;
+  --fg: #F3EBDD;
+  --muted: #BDB2A1;
+  --line: rgba(243, 235, 221, .09);
+  --accent: #E5533D;
+  --accent-hover: #EC6A55;
+  --on-accent: #1A1714;
+  --accent-soft: color-mix(in srgb, #E5533D 20%, #211C18);
+  --star: #E0A93B;
+  --danger: #FF8A7A;
+  --scrim: rgba(0, 0, 0, .6);
+  --shadow: 0 14px 34px rgba(0, 0, 0, .5);
+  --bar: var(--bg); --bar-deep: var(--bg); --on-bar: var(--fg); --on-bar-dim: var(--muted);
+  --tile: #F3EBDD; --tile-line: transparent;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
   --tile-size: 52px;
   --tile-min: 76px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bar: #1d5aa8; --bar-deep: #17497f; --bg: #1c1f25; --surface: #262a31; --surface-2: #2e333b;
-    --tile: #f1f3f7; --tile-line: #f1f3f7; --fg: #e9ecf1; --muted: #9ba5b4; --line: #343a43;
-    --accent: #82b1ff; --accent-soft: #2b3a52; --star: #ffc53d; --danger: #ff8a80; --scrim: rgba(0, 0, 0, .6);
-    --shadow: 0 10px 30px rgba(0, 0, 0, .5); color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bar: #1d5aa8; --bar-deep: #17497f; --bg: #1c1f25; --surface: #262a31; --surface-2: #2e333b;
-  --tile: #f1f3f7; --tile-line: #f1f3f7; --fg: #e9ecf1; --muted: #9ba5b4; --line: #343a43;
-  --accent: #82b1ff; --accent-soft: #2b3a52; --star: #ffc53d; --danger: #ff8a80; --scrim: rgba(0, 0, 0, .6);
-  --shadow: 0 10px 30px rgba(0, 0, 0, .5); color-scheme: dark;
+  color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { height: 100%; }
@@ -274,6 +263,84 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
 .p-cast { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: rgba(255, 255, 255, .85); padding: 24px; }
 .p-cast .i { width: 56px; height: 56px; margin: 0 auto 10px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001s !important; transition-duration: .001s !important; } }
+
+/* ===== stile Joy / myTube ===== */
+body { background: var(--bg); }
+.top { background: var(--bg); color: var(--fg); box-shadow: none; }
+.appbar { height: 64px; padding: 0 4px 0 6px; }
+.title { display: flex; flex-direction: column; justify-content: center; padding-left: 8px; line-height: 1.1; }
+.brand { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.brand b { color: var(--accent); font-weight: inherit; }
+.title small { font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0; }
+.title small:empty { display: none; }
+.ib:hover { background: rgba(243, 235, 221, .08); }
+.ib:active { background: rgba(243, 235, 221, .14); transform: scale(.94); }
+.searchbar { height: 64px; }
+.searchbar input { height: 44px; border-radius: 500px; background: var(--card); border: 1px solid var(--line); color: var(--fg); font-size: 16px; padding: 0 16px; }
+.searchbar input:focus { border-color: var(--accent); }
+.tabs { gap: 8px; padding: 2px 16px 12px; }
+.tab { height: 36px; padding: 0 15px; border-radius: 500px; border: 1px solid var(--line); background: var(--card); color: var(--muted); text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 600; transition: background .15s, transform .1s; }
+.tab:active { transform: scale(.96); }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: transparent; }
+.tab[aria-selected="true"]::after { display: none; }
+.tab .n { opacity: .6; font-weight: 500; }
+.loadbar i { background: var(--accent); }
+.status { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.status button { color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
+.res-h { font-weight: 700; color: var(--muted); }
+.rows .ch { background: var(--bg); border-bottom: 0; min-height: 70px; gap: 14px; }
+.rows .ch:hover, .rows .ch:active { background: var(--surface); }
+.rows .nm { font-size: 15.5px; font-weight: 600; }
+.grid .ch:hover, .grid .ch:active { background: var(--surface); }
+.grid .nm { color: var(--muted); font-weight: 500; }
+.av { border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
+.av b { font-weight: 700; }
+.pb { background: rgba(243, 235, 221, .12); }
+.pb i { background: var(--accent); }
+.empty h3, .dlg-t, .sh-head b, .dr-head b { font-family: var(--display); font-weight: 700; letter-spacing: 0; }
+.empty h3 { font-size: 20px; }
+.drawer, .menu, .sheet, .dlg { background: var(--surface); color: var(--fg); }
+.drawer { border-radius: 0 18px 18px 0; }
+.menu { border-radius: 14px; border: 1px solid var(--line); }
+.sheet { border-radius: 18px 18px 0 0; }
+.dlg { border-radius: 18px; }
+.dr-head { background: none; color: var(--fg); border-bottom: 1px solid var(--line); }
+.dr-head b { font-size: 22px; }
+.dr-head b em { font-style: normal; color: var(--accent); }
+.dr-head small { color: var(--muted); }
+.dr-label, .menu-label { font-weight: 800; letter-spacing: .06em; }
+.dr-item { border-radius: 0 500px 500px 0; width: calc(100% - 10px); }
+.dr-item:hover, .menu button:hover, .sheet .menu-btn:hover { background: var(--surface-2); }
+.dr-item.on { background: var(--accent-soft); }
+.btn { border-radius: 500px; height: 42px; padding: 0 20px; font-weight: 700; letter-spacing: 0; background: var(--surface-2); color: var(--fg); transition: transform .1s, background .15s; }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--accent); color: var(--on-accent); font-weight: 800; }
+.btn.primary:hover { background: var(--accent-hover); }
+.btn.text { background: none; color: var(--fg); }
+.btn.text:hover { background: var(--surface-2); }
+.fld input, .fld textarea, .fld select { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; color: var(--fg); }
+.seg { background: var(--bg); border-radius: 500px; }
+.seg button { border-radius: 500px; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); box-shadow: none; }
+.chip { border-radius: 500px; background: var(--card); border: 1px solid var(--line); font-weight: 600; }
+.chip:hover { border-color: var(--accent); color: var(--fg); }
+.set-sec { color: var(--muted); font-weight: 800; letter-spacing: .06em; }
+.sw input { background: var(--surface-2); }
+.sw input::after { background: var(--fg); }
+.toast { background: var(--surface-2); color: var(--fg); border-radius: 12px; border: 1px solid var(--line); }
+.guide li.now time, .guide li.now b { color: var(--accent); }
+.epg-wrap { background: var(--bg); }
+.epg-now-btn { background: var(--accent); color: var(--on-accent); font-weight: 800; letter-spacing: 0; border-radius: 500px; }
+.epg-row.ruler, .epg-ch { background: var(--bg); }
+.epg-p { background: var(--card); border-color: var(--line); border-radius: 10px; }
+.epg-p.now { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.epg-nowline { background: var(--accent); }
+.epg-tick.day { color: var(--accent); }
+.epg-wrap .title { font-family: var(--display); font-size: 24px; font-weight: 700; padding-left: 4px; }
+.p-msg .btn { background: rgba(243, 235, 221, .14); color: #fff; }
+.p-msg .btn.primary { background: var(--accent); color: var(--on-accent); }
+.p-epg .pb i, .p-seek input { accent-color: var(--accent); }
+.p-epg .pb i { background: var(--accent); }
 </style>
 
 </head>
@@ -282,7 +349,7 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
   <header class="top">
     <div class="appbar" id="appbar">
       <button class="ib" id="btnMenu" type="button" aria-label="Apri il menu"></button>
-      <div class="title" id="title">Tivù</div>
+      <div class="title"><span class="brand">Tivù<b>Player</b></span><small id="title"></small></div>
       <button class="ib" id="btnSearch" type="button" aria-label="Cerca"></button>
       <button class="ib" id="btnGuide" type="button" aria-label="Guida TV"></button>
       <button class="ib" id="btnView" type="button" aria-label="Cambia vista"></button>
@@ -379,7 +446,7 @@ const I = {
   error: "M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z",
   history: "M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
 };
-const LOGO_SVG = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="12" fill="#fff"/><rect x="9" y="14" width="30" height="21" rx="4" fill="#1b5fb5"/><path d="M21 19.5v10l8-5z" fill="#fff"/><path d="M18 9l6 5 6-5" stroke="#1b5fb5" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const LOGO_SVG = '<svg class="logo" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2EC9B5"/><stop offset="1" stop-color="#3F63DB"/></linearGradient></defs><rect width="512" height="512" rx="110" fill="#121212"/><circle cx="256" cy="256" r="190" fill="url(#lg)"/><path d="M214 158l42 40 42-40" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><rect x="160" y="206" width="192" height="136" rx="26" fill="none" stroke="#fff" stroke-width="18"/><path d="M238 244v60l52-30z" fill="#fff" stroke="#fff" stroke-width="6" stroke-linejoin="round"/></svg>';
 
 // ======================= utilita' =======================
 const $ = id => document.getElementById(id);
@@ -721,7 +788,7 @@ function popMenu(items) {
 // ======================= menu laterale =======================
 function openDrawer() {
   const scrim = h("div", { class: "scrim" }), dr = h("aside", { class: "drawer", "aria-label": "Menu" });
-  const head = h("div", { class: "dr-head", html: LOGO_SVG }); head.append(h("div", {}, h("b", { text: "Tivù Player" }), h("small", { text: "Le tue playlist IPTV" })));
+  const head = h("div", { class: "dr-head", html: LOGO_SVG }); head.append(h("div", {}, h("b", {}, "Tivù", h("em", { text: "Player" })), h("small", { text: "Le tue playlist IPTV" })));
   const body = h("div", { class: "dr-body" }, h("div", { class: "dr-label", text: "Playlist" }));
   const go = fn => () => { closeLayer(L); fn(); };
   for (const pl of S.pls) {
@@ -951,7 +1018,7 @@ function confirmDelete(pl) {
     { label: "Elimina", primary: true, run: async () => {
       await DB.del("playlists", pl.id); await DB.del("epg", pl.id); for (const k of ["favs.", "rec.", "tab."]) store.del(k + pl.id);
       await refreshPlaylistsList();
-      if (S.pl && S.pl.id === pl.id) { if (S.pls.length) selectPlaylist(S.pls[0]); else { S.pl = null; S.chans = []; S.groups = []; $("title").textContent = "Tivù"; renderTabs(); render(true); } }
+      if (S.pl && S.pl.id === pl.id) { if (S.pls.length) selectPlaylist(S.pls[0]); else { S.pl = null; S.chans = []; S.groups = []; $("title").textContent = ""; renderTabs(); render(true); } }
       toast("Playlist eliminata");
     } },
   ] });
