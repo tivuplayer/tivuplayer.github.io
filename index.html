@@ -359,10 +359,8 @@ html[data-tile="l"] .rows .ch { min-height: 84px; } html[data-tile="l"] .rows .n
 #list .ch:focus-visible, .tab:focus-visible, .epg-p:focus-visible, .epg-ch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 #list.rows .ch:focus-visible { outline-offset: -3px; background: var(--surface); }
 .menu { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain; }
-.p-chl { position: absolute; top: 0; right: 0; bottom: 0; width: min(400px, 88vw); z-index: 4; display: flex; flex-direction: column; background: rgba(26, 23, 20, .93); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: -18px 0 40px rgba(0, 0, 0, .45); padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) 0; animation: chlIn .2s ease-out; color: var(--fg); touch-action: pan-y; }
-.p-chl.out { animation: chlOut .18s ease-in forwards; }
-@keyframes chlIn { from { transform: translateX(100%); } }
-@keyframes chlOut { to { transform: translateX(100%); } }
+.p-chl { position: absolute; left: 0; right: 0; bottom: 0; height: min(72vh, 620px); max-width: 760px; margin: 0 auto; z-index: 4; display: flex; flex-direction: column; background: rgba(26, 23, 20, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-radius: 20px 20px 0 0; box-shadow: 0 -14px 34px rgba(0, 0, 0, .45); padding: 6px env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); animation: chlUp .22s ease-out; color: var(--fg); touch-action: pan-y; }
+.p-chl.out { animation: chlDown .18s ease-in forwards; }
 .p-chl-h { display: flex; align-items: center; justify-content: space-between; padding: 10px 6px 4px 18px; }
 .p-chl-h b { font-family: var(--display); font-size: 22px; font-weight: 700; }
 .p-chl-tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 6px 14px 12px; flex: none; }
@@ -384,14 +382,11 @@ html[data-tile="l"] .rows .ch { min-height: 84px; } html[data-tile="l"] .rows .n
 .pc-row .fav { color: var(--star); flex: none; } .pc-row .fav .i { width: 18px; height: 18px; }
 .p-chl-empty { color: var(--muted); padding: 24px 18px; line-height: 1.5; text-align: center; }
 .p-chl-more { height: 1px; }
-.p-chl-grab { display: none; }
+.p-chl-grab { display: block; width: 40px; height: 4px; border-radius: 2px; background: rgba(243, 235, 221, .3); margin: 2px auto 0; flex: none; }
 @media (orientation: portrait) {
-  /* telefono in verticale: il video sale in alto e la lista si apre sotto, si vedono tutti e due */
+  /* telefono in verticale: il video sale in alto e la tendina occupa il resto, si vedono tutti e due */
   #player.chl-open video { object-position: center top; }
-  .p-chl { top: calc(env(safe-area-inset-top, 0px) + 56.25vw); left: 0; width: 100%; border-radius: 20px 20px 0 0; padding-top: 6px; box-shadow: 0 -14px 34px rgba(0, 0, 0, .45); animation: chlUp .22s ease-out; }
-  .p-chl.out { animation: chlDown .18s ease-in forwards; }
-  .p-chl-grab { display: block; width: 40px; height: 4px; border-radius: 2px; background: rgba(243, 235, 221, .3); margin: 2px auto 0; }
-  .p-chl-h { padding-top: 4px; }
+  .p-chl { top: calc(env(safe-area-inset-top, 0px) + 56.25vw); height: auto; max-width: none; }
 }
 @keyframes chlUp { from { transform: translateY(100%); } }
 @keyframes chlDown { to { transform: translateY(100%); } }
@@ -1662,7 +1657,7 @@ async function playIdx(idx) {
         P.started = true; spin(false); updateSeek(); P.step = st; P.proxied = pl.proxied; netReset();
         altRemember(ch, st.alt); winRemember(ch, st);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
-        else if (!store.get("chlHint", false)) { store.set("chlHint", true); note("Scorri verso sinistra per vedere la lista dei canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
+        else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note("Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
       }
       return;
@@ -1881,16 +1876,20 @@ document.addEventListener("fullscreenchange", () => setIcon($("pFull"), document
   on("pFit", () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); });
   on("pFull", toggleFull);
   const pl = $("player"); let sx = 0, sy = 0, st = 0, moved = 0;   // moved: quando e' finito l'ultimo gesto (il tocco che lo segue subito va ignorato)
-  pl.addEventListener("touchstart", e => { st = 0; if (e.target.closest("button,input,.p-msg,.p-chl")) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive: true });
+  // il gesto vale ovunque sul video, anche partendo sopra i pulsanti (un tocco fermo sui pulsanti resta un tocco);
+  // non partono gesti dalla barra di avanzamento, dai messaggi e dalla tendina
+  pl.addEventListener("touchstart", e => { st = 0; if (e.touches.length > 1 || e.target.closest("input,.p-msg,.p-chl")) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive: true });
   pl.addEventListener("touchend", e => {
-    if (e.target.closest("button,input,.p-msg,.p-chl") || !st) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; st = 0;
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 50) { moved = Date.now(); if (dx < 0) openChPanel(); else closeChPanel(); return; }   // scorri a sinistra: lista dei canali
-    if (CH.open) return;
-    if (Math.abs(dy) > 70 && Math.abs(dx) < 60) { moved = Date.now(); zap(dy < 0 ? 1 : -1); }   // scorri in su: canale successivo
-  }, { passive: true });
+    if (!st || e.target.closest("input,.p-msg,.p-chl")) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; st = 0;
+    const gest = () => { moved = Date.now(); if (e.cancelable) e.preventDefault(); };   // niente «tocco» finto dopo il gesto
+    if (CH.open) { if (dy > 70 && Math.abs(dx) < 60) { gest(); closeChPanel(); } return; }
+    // scorri a sinistra: canale successivo, a destra: precedente; scorri in su: la tendina con tutti i canali
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 50) { gest(); zap(dx < 0 ? 1 : -1); return; }
+    if (dy < -70 && Math.abs(dx) < 60) { gest(); openChPanel(); }
+  });
   let lastTap = 0;
   pl.addEventListener("click", e => {
-    if (e.target.closest("button,input,.p-msg .box,summary,.p-chl")) return; if (Date.now() - moved < 500) { moved = 0; return; }
+    if (e.target.closest("button,input,.p-msg .box,summary,.p-chl")) return; if (Date.now() - moved < 300) { moved = 0; return; }
     if (CH.open) { closeChPanel(); return; }   // tocco sul video con la lista aperta: si chiude la lista
     const now = Date.now(); if (now - lastTap < 300) { toggleFull(); lastTap = 0; return; } lastTap = now;
     const ui = $("pUi"); if (ui.classList.contains("show") && !video.paused) { ui.classList.remove("show"); clearTimeout(P.hideT); } else showUi();
@@ -1942,8 +1941,8 @@ function helpDialog() {
   const li = (b, t) => h("li", {}, h("b", { text: b }), " " + t);
   dialog({ title: "Come si usa", wide: true, body: [
     h("ul", { class: "help" },
-      li("Guardare un canale:", "toccalo. Nel lettore scorri in su o in giù per passare al canale vicino, tocca due volte per lo schermo intero."),
-      li("Lista dei canali mentre guardi:", "scorri verso sinistra sul video (o tocca il pulsante ☰ in basso, o OK sul telecomando): si apre la lista con i gruppi e il programma in onda, il video continua."),
+      li("Guardare un canale:", "toccalo. Nel lettore scorri a sinistra per il canale successivo e a destra per il precedente; tocca due volte per lo schermo intero."),
+      li("Tutti i canali mentre guardi:", "scorri in su sul video (o tocca il pulsante ☰ in basso, o OK sul telecomando): dal basso esce la tendina con tutti i canali, quello in onda è evidenziato. Il video continua; per chiuderla trascinala in giù."),
       li("Preferiti:", "tocca la stella nel lettore, oppure tieni premuto un canale (o tocca ⋮ nella vista elenco) e scegli «Aggiungi ai preferiti»."),
       li("Guida TV:", "tocca l'orologio in alto per vedere cosa c'è adesso e nelle prossime ore su tutti i canali. Tocca un programma per i dettagli."),
       li("Gruppi:", "le pillole in alto (Nazionali, Sport…) filtrano i canali; puoi anche scorrere a destra o a sinistra sull'elenco."),
@@ -1962,8 +1961,8 @@ function helpDialog() {
 }
 
 // ======================= lista dei canali dentro il lettore =======================
-// Mentre si guarda: scorrere verso sinistra (o il pulsante «Canali», o OK sul telecomando) apre a destra la lista dei
-// canali, con i gruppi in alto e il programma in onda. Il video continua; un tocco su un canale lo cambia.
+// Mentre si guarda: scorrere in su (o il pulsante «Canali», o OK sul telecomando) fa uscire dal basso la tendina con tutti
+// i canali, quello in onda evidenziato. Il video continua; un tocco su un canale lo cambia, trascinarla in giu' la chiude.
 const CH = { open: false, layer: null, tab: null, list: [], shown: 0, io: null };
 function chPanelTabs() {
   const t = tabsList();
@@ -1974,16 +1973,16 @@ function chListFor(tab) { return tab.startsWith("q:") ? listFor(TAB_ALL, tab.sli
 function openChPanel() {
   if (CH.open || $("player").hidden) return;
   CH.open = true; $("pUi").classList.remove("show"); clearTimeout(P.hideT);
-  if (/^Scorri verso sinistra/.test($("pNote").textContent)) note("");
+  if (/^Scorri /.test($("pNote").textContent)) note("");
   const panel = $("pChl"); panel.hidden = false; panel.classList.remove("out"); $("player").classList.add("chl-open");
   // la scheda di partenza e' quella da cui viene il canale in onda (se il canale e' li')
-  CH.tab = P.listTab && chListFor(P.listTab).includes(P.ch) ? P.listTab : TAB_ALL;
+  CH.tab = TAB_ALL;   // la tendina mostra tutti i canali; le pillole servono per filtrare
   renderChTabs(); renderChList(true);
   CH.layer = pushLayer(() => {
     CH.open = false; CH.layer = null; if (CH.io) CH.io.disconnect(); $("player").classList.remove("chl-open");
     panel.classList.add("out"); setTimeout(() => { if (!CH.open) panel.hidden = true; }, 180);
   });
-  if (!store.get("chlHint", false)) store.set("chlHint", true);
+  if (!store.get("chlHint2", false)) store.set("chlHint2", true);
 }
 function closeChPanel() { if (CH.layer) closeLayer(CH.layer); }
 function renderChTabs() {
@@ -2037,9 +2036,8 @@ function renderChList(reset) {
   const pn = $("pChl"); let x0 = 0, y0 = 0;
   pn.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
   pn.addEventListener("touchend", e => {
-    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, portrait = innerHeight > innerWidth;
-    if (dx > 70 && Math.abs(dy) < 50) closeChPanel();
-    else if (portrait && dy > 70 && Math.abs(dx) < 60 && (e.target.closest(".p-chl-h, .p-chl-tabs") || $("pChlList").scrollTop <= 0)) closeChPanel();   // trascinata in giu'
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    if (dy > 70 && Math.abs(dx) < 60 && (e.target.closest(".p-chl-grab, .p-chl-h, .p-chl-tabs") || $("pChlList").scrollTop <= 0)) closeChPanel();   // trascinata in giu'
   }, { passive: true });
 })();
 
@@ -2234,7 +2232,7 @@ document.addEventListener("keydown", e => {
     else if (k === "c" || k === "C" || (k === "Enter" && !(document.activeElement && document.activeElement.closest && document.activeElement.closest("#player button")))) { e.preventDefault(); openChPanel(); }
     else if (k === "m" || k === "M") video.muted = !video.muted;
     else if (k === "Escape" && !document.fullscreenElement) closePlayer();
-    else if (k === "ArrowLeft" || k === "ArrowRight") { if (isFinite(video.duration)) video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); }
+    else if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); if (isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); } else zap(k === "ArrowRight" ? 1 : -1); }
     return;
   }
   if (e.key === "Escape") { const L = topLayer(); if (L) closeLayer(L); }
