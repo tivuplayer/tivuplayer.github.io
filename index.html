@@ -94,12 +94,12 @@ img { max-width: 100%; }
 .pb { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 4px; max-width: 220px; }
 .pb i { display: block; height: 100%; background: var(--accent); }
 .av { width: var(--tile-size); height: var(--tile-size); flex: none; border-radius: 10px; background: var(--tile); border: 1px solid var(--tile-line); display: grid; place-items: center; overflow: hidden; position: relative; }
-.rows .av { width: 46px; height: 46px; }
+.rows .av { width: calc(var(--tile-size) * .9); height: calc(var(--tile-size) * .9); }
 .av img { width: 86%; height: 86%; object-fit: contain; position: absolute; inset: 7%; opacity: 0; transition: opacity .15s; }
 .av.has-logo img { opacity: 1; }
 .av.has-logo b { visibility: hidden; }
 .av b { width: 72%; height: 72%; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 500; font-size: calc(var(--tile-size) * .36); background: var(--c, #5c6bc0); }
-.rows .av b { font-size: 17px; }
+.rows .av b { font-size: calc(var(--tile-size) * .33); }
 .favdot { position: absolute; top: 6px; right: 8px; color: var(--star); }
 .grid .favdot .i { width: 16px; height: 16px; }
 .rows .favdot { position: static; }
@@ -154,7 +154,7 @@ img { max-width: 100%; }
 .guide b { font-weight: 500; display: block; }
 .guide p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .dlg-wrap { position: fixed; inset: 0; z-index: 40; background: var(--scrim); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); animation: fade .15s ease-out; }
-.dlg { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); width: 100%; max-width: 440px; max-height: 100%; display: flex; flex-direction: column; animation: pop .16s ease-out; }
+.dlg { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); width: 100%; max-width: 440px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; animation: pop .16s ease-out; }
 .dlg.wide { max-width: 560px; }
 .dlg-t { margin: 0; font-size: 20px; font-weight: 500; padding: 22px 24px 8px; text-wrap: balance; }
 .dlg-b { padding: 8px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
@@ -352,6 +352,13 @@ body { background: var(--bg); }
 .adv-b { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
 ul.adv-b { gap: 6px; }
 .av.dark { background: #2E2721; box-shadow: inset 0 0 0 1px rgba(243, 235, 221, .1), 0 6px 16px rgba(0, 0, 0, .35); }
+html[data-tile="s"] .rows .ch { min-height: 58px; } html[data-tile="s"] .rows .nm { font-size: 14.5px; } html[data-tile="s"] .grid .nm { font-size: 11.5px; }
+html[data-tile="l"] .rows .ch { min-height: 84px; } html[data-tile="l"] .rows .nm { font-size: 18px; } html[data-tile="l"] .rows .sub { font-size: 14.5px; } html[data-tile="l"] .grid .nm { font-size: 14px; }
+.p-golive { align-self: flex-end; margin: 0 4px 8px auto; border: 0; border-radius: 500px; background: var(--accent); color: var(--on-accent); font: 800 13px/1 var(--font); padding: 10px 16px; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); display: inline-flex; align-items: center; gap: 8px; }
+.p-golive::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+#list .ch:focus-visible, .tab:focus-visible, .epg-p:focus-visible, .epg-ch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+#list.rows .ch:focus-visible { outline-offset: -3px; background: var(--surface); }
+.menu { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain; }
 </style>
 
 </head>
@@ -404,6 +411,7 @@ ul.adv-b { gap: 6px; }
       <button class="ib big" id="pNext" type="button" aria-label="Canale successivo"></button>
     </div>
     <div class="p-bot">
+      <button class="p-golive" id="pLive" type="button" hidden>Torna alla diretta</button>
       <div class="p-seek" id="pSeek" hidden><span id="pCur">0:00</span><input type="range" id="pRange" min="0" max="1000" value="0" aria-label="Posizione"><span id="pDur">0:00</span></div>
       <div class="p-row">
         <div class="p-epg" id="pEpg"></div>
@@ -531,13 +539,14 @@ const DB = (() => {
 })();
 
 // ======================= impostazioni =======================
-const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, proxy: "", proxyVideo: false, sort: "orig" };
+const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, proxy: "", proxyVideo: false, sort: "orig" };
 const CFG = Object.assign({}, DEF, store.get("settings", {}));
 function saveCfg() { store.set("settings", CFG); }
 function applyCfg() {
   const t = { s: [42, 64], m: [52, 76], l: [68, 100] }[CFG.tile] || [52, 76];
   document.documentElement.style.setProperty("--tile-size", t[0] + "px");
   document.documentElement.style.setProperty("--tile-min", t[1] + "px");
+  document.documentElement.dataset.tile = CFG.tile;
   setIcon($("btnView"), CFG.view === "grid" ? "list" : "grid");
   $("btnView").setAttribute("aria-label", CFG.view === "grid" ? "Mostra come elenco" : "Mostra come griglia");
 }
@@ -568,11 +577,16 @@ function parseM3U(text, base) {
     if (/^#EXTINF/i.test(line)) { meta = parseExtinf(line); continue; }
     if (/^#EXTGRP:/i.test(line)) { grp = line.slice(8).trim(); continue; }
     if (line[0] === "#") continue;
-    let url = line; const bar = url.indexOf("|"); if (bar > 0) url = url.slice(0, bar);
-    if (base && !/^[a-z][\w+.-]*:/i.test(url)) { try { url = new URL(url, base).href; } catch (e) {} }
+    let url = line; const bar = url.indexOf("|"); if (bar > 0) url = url.slice(0, bar).trim();
+    // solo righe che sono davvero indirizzi: una pagina web o un testo qualsiasi non diventano «canali»
+    const abs = /^[a-z][\w+.-]*:\/\/\S+$/i.test(url);
+    if (/[\s<>"{}]/.test(url) || (!abs && !(meta && base))) { meta = null; grp = ""; continue; }
+    if (!abs) { try { url = new URL(url, base).href; } catch (e) { meta = null; continue; } }
     const m = meta || { attrs: {}, title: "" }, a = m.attrs;
     const name = deEnt(m.title || a["tvg-name"] || nameFromUrl(url)).trim() || "Canale " + (out.length + 1);
-    out.push({ name, url, logo: a["tvg-logo"] || a.logo || "", group: deEnt(a["group-title"] || grp).trim(), tvgId: a["tvg-id"] || "", tvgName: a["tvg-name"] || "" });
+    // group-title="Notizie;Sport": il canale sta in tutti e due i gruppi
+    const groups = deEnt(a["group-title"] || grp).split(";").map(x => x.trim()).filter(Boolean);
+    out.push({ name, url, logo: a["tvg-logo"] || a.logo || "", group: groups[0] || "", groups, tvgId: a["tvg-id"] || "", tvgName: a["tvg-name"] || "" });
     meta = null; grp = "";
   }
   const seen = {};
@@ -628,11 +642,11 @@ function setTab(id) {
 }
 function currentList() {
   let L;
-  if (S.q) { const q = norm(S.q).trim(); L = S.chans.filter(c => c.n.includes(q) || norm(c.group).includes(q)); }
+  if (S.q) { const q = norm(S.q).trim(); L = S.chans.filter(c => c.n.includes(q) || (c.groups || [c.group]).some(g => norm(g).includes(q))); }
   else if (S.tab === TAB_FAV) L = S.chans.filter(c => S.favs.has(c.key));
   else if (S.tab === TAB_REC) { const m = byKey(); return S.recs.map(k => m.get(k)).filter(Boolean); }
   else if (S.tab === TAB_ALL) L = S.chans;
-  else { const g = S.tab.slice(2); L = S.chans.filter(c => c.group === g); }
+  else { const g = S.tab.slice(2); L = S.chans.filter(c => c.group === g || (c.groups && c.groups.includes(g))); }
   if (CFG.sort === "az") L = L.slice().sort((a, b) => a.name.localeCompare(b.name, "it", { numeric: true, sensitivity: "base" }));
   return L;
 }
@@ -740,13 +754,14 @@ new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) renderMore(
 const layers = []; let skipPop = 0, armed = false, backT = 0;
 function arm() { if (FRAMED || armed) return; try { history.pushState({ tivu: 1 }, ""); armed = true; } catch (e) {} }
 function pushLayer(closeFn) {
-  const L = { closeFn, open: true }; layers.push(L);
+  const L = { closeFn, open: true, focus: document.activeElement }; layers.push(L);
   clearTimeout(backT); backT = 0; arm();
   return L;
 }
 function closeLayer(L) {
   if (!L || !L.open) return; L.open = false; const i = layers.indexOf(L); if (i >= 0) layers.splice(i, 1);
   L.closeFn();
+  try { if (L.focus && L.focus !== document.body && L.focus.isConnected) L.focus.focus({ preventScroll: true }); } catch (e) {}   // la selezione torna dov'era
   if (armed && !layers.length) { clearTimeout(backT); backT = setTimeout(() => { backT = 0; if (armed && !layers.length) { armed = false; skipPop++; history.back(); } }, 60); }
 }
 addEventListener("popstate", () => {
@@ -1014,7 +1029,7 @@ async function selectPlaylist(pl, opt) {
 }
 function applyParsed(pl, parsed) {
   S.chans = parsed.channels; S._bk = null;
-  const gs = []; const seen = new Set(); for (const c of S.chans) if (c.group && !seen.has(c.group)) { seen.add(c.group); gs.push(c.group); }
+  const gs = []; const seen = new Set(); for (const c of S.chans) for (const g of c.groups || [c.group]) if (g && !seen.has(g)) { seen.add(g); gs.push(g); }
   S.groups = gs; pl.epgAuto = parsed.epg; pl.count = S.chans.length;
 }
 async function refreshPlaylist(pl, quiet) {
@@ -1198,7 +1213,7 @@ function openEpgGrid() {
     for (const c of rows) {
       const line = h("div", { class: "epg-line", style: "width:" + W + "px" }); line._c = c;
       if (io) io.observe(line); else fill(line, c);
-      grid.append(h("div", { class: "epg-row" }, h("div", { class: "epg-ch", title: c.name, onclick: () => openChannel(c) }, avatar(c), h("span", { text: c.name })), line));
+      grid.append(h("div", { class: "epg-row" }, h("div", { class: "epg-ch", title: c.name, role: "button", tabindex: "0", onclick: () => openChannel(c), onkeydown: e => { if (e.key === "Enter") openChannel(c); } }, avatar(c), h("span", { text: c.name })), line));
     }
     const nl = h("div", { class: "epg-nowline" }); grid.append(nl);
     const place = () => { nl.style.left = (CHW + X(Date.now())) + "px"; };
@@ -1513,7 +1528,7 @@ function openPlayer(list, idx) {
 }
 function closePlayer() { if (P.layer) closeLayer(P.layer); else closePlayerNow(); }
 function closePlayerNow() {
-  P.token++; stopEngines(); note(""); $("player").hidden = true; hideMsg(); $("pCastInfo").hidden = true; P.layer = null;
+  P.token++; netReset(); stopEngines(); note(""); $("pLive").hidden = true; $("player").hidden = true; hideMsg(); $("pCastInfo").hidden = true; P.layer = null;
   try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
   try { if (P.wake) P.wake.release(); } catch (e) {} P.wake = null;
   try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
@@ -1554,7 +1569,7 @@ function plan(url) {
 }
 async function playIdx(idx) {
   const ch = P.list[idx]; if (!ch) return;
-  P.idx = idx; P.ch = ch; P.started = false; P.retried = false; const token = ++P.token;
+  P.idx = idx; P.ch = ch; P.started = false; P.retried = false; P.step = null; const token = ++P.token; netReset(); $("pLive").hidden = true;
   addRecent(ch); updatePlayerInfo(); hideMsg(); $("pCastInfo").hidden = true; showUi(true);
   stopEngines(); spin(true); setIcon($("pPlay"), "pause"); $("pSeek").hidden = true;
   if ("mediaSession" in navigator) try {
@@ -1596,7 +1611,7 @@ async function playIdx(idx) {
         if (miss) { if (st.e === "hls") await new Promise(r => setTimeout(r, 300)); throw { kind: "format", det: "il browser salta " + miss + " (" + [...P.pmt.v, ...P.pmt.a].join(", ") + ")" }; }
       }
       if (token === P.token) {
-        P.started = true; spin(false); updateSeek();
+        P.started = true; spin(false); updateSeek(); P.step = st; P.proxied = pl.proxied; netReset();
         altRemember(ch, st.alt); winRemember(ch, st);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
@@ -1631,7 +1646,7 @@ function attempt(st, token, proxied) {
       if (st.e === "hls" || st.e === "hlsx") {
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
-        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: true, backBufferLength: 30, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: true, backBufferLength: 30, ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
         if (st.e === "hlsx") {
           try { await decLoad(note); } catch (e) { return ko({ kind: "unknown", det: "decodificatore non caricato: " + (e && e.message || e) }); }
           if (token !== P.token) return ko({ kind: "stale" });
@@ -1656,33 +1671,34 @@ function attempt(st, token, proxied) {
         if (st.e === "hls") hls.on(Hls.Events.FRAG_DECRYPTED, (_, d) => { if (P.peek && d && d.payload) P.peek(d.payload.buffer || d.payload); });
         P.hls = hls;
         hls.on(Hls.Events.ERROR, (_, d) => {
-          if (!d.fatal) return;
+          if (!d.fatal || P.hls !== hls) return;
           if (!P.started) return ko(classifyHls(d, st.url));
           if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !P.retried) { P.retried = true; hls.recoverMediaError(); return; }
-          if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !P.retried) { P.retried = true; setTimeout(() => { if (P.hls === hls) hls.startLoad(); }, 2000); return; }
-          showError(classifyHls(d, st.url), P.ch);
+          netLost(classifyHls(d, st.url));
         });
         hls.loadSource(st.url); hls.attachMedia(video);
       } else if (st.e === "dash") {
         await loadScript(LIB.dash); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.dashjs) return ko({ kind: "format" });
         const dp = dashjs.MediaPlayer().create(); P.dash = dp;
-        dp.updateSettings({ streaming: { delay: { liveDelayFragmentCount: 3 }, retryAttempts: { MPD: 1 } } });
+        dp.updateSettings({ streaming: { delay: { liveDelayFragmentCount: slowNet() ? 6 : 3 }, retryAttempts: { MPD: 1 }, buffer: slowNet() ? { bufferTimeAtTopQuality: 60, bufferTimeAtTopQualityLongForm: 90, stableBufferTime: 30 } : {} } });
         dp.on(dashjs.MediaPlayer.events.ERROR, ev => {
           const er = ev && ev.error || {}, msg = String(er.message || "");
           const e = /protection|key|drm|license/i.test(msg) || er.code === 110 ? { kind: "drm" } : /download|manifest|xhr|load/i.test(msg) || (er.code >= 10 && er.code < 40) ? (isMixed(st.url) ? { kind: "mixed" } : { kind: "network" }) : { kind: "format" };
           e.det = "dash " + (er.code || "") + " " + msg.slice(0, 120);
-          if (!P.started) ko(e); else showError(e, P.ch);
+          if (P.dash !== dp) return;
+          if (!P.started) ko(e); else if (e.kind === "drm") showError(e, P.ch); else netLost(e);
         });
         dp.initialize(video, st.url, true);
       } else if (st.e === "ts" || st.e === "flv") {
         await loadScript(LIB.ts); if (token !== P.token) return ko({ kind: "stale" });
         const M = window.mpegts; if (!M || !M.isSupported()) return ko({ kind: "format" });
-        const p = M.createPlayer({ type: st.e === "flv" ? "flv" : "mpegts", isLive: true, url: st.url }, { enableWorker: true, enableStashBuffer: false, lazyLoad: false, liveBufferLatencyChasing: true, liveBufferLatencyMaxLatency: 8 });
+        const p = M.createPlayer({ type: st.e === "flv" ? "flv" : "mpegts", isLive: true, url: st.url }, { enableWorker: true, enableStashBuffer: true, stashInitialSize: slowNet() ? 512 * 1024 : 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !slowNet(), liveBufferLatencyMaxLatency: 30, liveBufferLatencyMinRemain: 4 });
         P.ts = p;
         p.on(M.Events.ERROR, (type, detail, info) => {
           const e = { kind: type === M.ErrorTypes.NETWORK_ERROR ? (info && info.code >= 400 ? "http" : isMixed(st.url) ? "mixed" : "network") : "format", code: info && info.code, det: String(detail || "") + (info && info.msg ? " " + info.msg : "") };
-          if (!P.started) ko(e); else showError(e, P.ch);
+          if (P.ts !== p) return;
+          if (!P.started) ko(e); else netLost(e);
         });
         p.attachMediaElement(video); p.load();
       } else {
@@ -1737,8 +1753,10 @@ function spin(on) { $("pSpin").hidden = !on; }
 function hideMsg() { $("pMsg").hidden = true; $("player").classList.remove("has-msg"); }
 function showError(e, ch) {
   spin(false); if (!ch || ch !== P.ch) return;
+  if (P.started) { netReset(); stopEngines(); P.started = false; note(""); }   // errore durante la visione: si ferma tutto, «Riprova» riparte pulito
   const T = {
     mixed: ["Canale bloccato dal browser", "Questo canale usa un indirizzo non sicuro (http) e il browser non lo apre. Puoi guardarlo con un'altra app, per esempio VLC."],
+    lost: ["Connessione persa", "Da due minuti il canale non arriva. Controlla la connessione a internet e premi Riprova."],
     network: ["Il canale non risponde", "Il canale è spento in questo momento, oppure non si può guardare da un sito. Riprova tra poco o aprilo con un'altra app, per esempio VLC."],
     http: ["Il server ha rifiutato il canale", "Errore " + (e.code || "") + ": il canale potrebbe essere offline, cambiato di indirizzo o riservato agli abbonati."],
     drm: ["Canale protetto", "Questo canale è cifrato (DRM) e può essere visto solo nell'app ufficiale dell'emittente."],
@@ -1770,21 +1788,24 @@ function updatePlayerInfo() {
 }
 function updateSeek() {
   const d = video.duration, show = !!P.ch && isFinite(d) && d > 0 && kindOf(P.ch.url) !== "ts";
-  $("pSeek").hidden = !show; if (!show) return;
+  $("pSeek").hidden = !show; const lv = $("pEpg").querySelector(".p-live"); if (lv) lv.hidden = show;   // un video registrato non e' «in diretta»
+  if (!show) return;
   $("pDur").textContent = dur(d); $("pCur").textContent = dur(video.currentTime);
   if (!P.seeking) $("pRange").value = String(Math.round(video.currentTime / d * 1000));
 }
 video.addEventListener("timeupdate", () => { if (!$("pSeek").hidden || isFinite(video.duration)) updateSeek(); });
 video.addEventListener("durationchange", updateSeek);
-video.addEventListener("waiting", () => { if (P.started) spin(true); });
+video.addEventListener("waiting", () => { if (P.started) { spin(true); onStall(); } });
 video.addEventListener("playing", () => { spin(false); setIcon($("pPlay"), "pause"); scheduleHide(); });
-video.addEventListener("pause", () => { setIcon($("pPlay"), "play"); showUi(true); });
+video.addEventListener("pause", () => { if (P.autoPause) return; setIcon($("pPlay"), "play"); showUi(true); });
 video.addEventListener("volumechange", () => setIcon($("pMute"), video.muted ? "volX" : "vol"));
 $("pRange").addEventListener("input", () => { P.seeking = true; const d = video.duration; if (isFinite(d)) $("pCur").textContent = dur($("pRange").value / 1000 * d); showUi(); });
 $("pRange").addEventListener("change", () => { const d = video.duration; if (isFinite(d)) video.currentTime = $("pRange").value / 1000 * d; P.seeking = false; });
 function showUi(sticky) { $("pUi").classList.add("show"); clearTimeout(P.hideT); if (!sticky) scheduleHide(); }
 function scheduleHide() { clearTimeout(P.hideT); P.hideT = setTimeout(() => { if (!video.paused && $("pMsg").hidden) $("pUi").classList.remove("show"); }, 3500); }
-function togglePlay() { if (video.paused) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } else video.pause(); }
+function togglePlay() {
+  if (NET.rebuf) { stopRebuffer(); setIcon($("pPlay"), "play"); spin(false); return; }   // in attesa della scorta: il tocco mette in pausa davvero
+  if (video.paused) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } else video.pause(); }
 const FITS = ["contain", "cover", "fill"], FIT_LABEL = { contain: "Adatta", cover: "Riempi (ritaglia)", fill: "Allunga" };
 let fit = store.get("fit", "contain");
 function applyFit() { const pl = $("player"); pl.classList.toggle("fit-cover", fit === "cover"); pl.classList.toggle("fit-fill", fit === "fill"); }
@@ -1846,18 +1867,19 @@ function settingsDialog() {
   const body = [
     h("div", { class: "set-sec", text: "Aspetto" }),
     segRow("cfgView", "Vista dei canali", [["grid", "Griglia"], ["rows", "Elenco"]], CFG.view, v => set("view", v, true)),
-    segRow("cfgTile", "Dimensione dei riquadri", [["s", "Piccoli"], ["m", "Medi"], ["l", "Grandi"]], CFG.tile, v => set("tile", v, true)),
+    segRow("cfgTile", "Dimensione dei canali", [["s", "Piccoli"], ["m", "Medi"], ["l", "Grandi"]], CFG.tile, v => set("tile", v, true)),
     swRow("cfgLogos", "Mostra i loghi dei canali", "Se spento, si vede solo l'iniziale colorata.", CFG.logos, v => set("logos", v, true)),
     h("div", { class: "set-sec", text: "Riproduzione" }),
     swRow("cfgExt", "Apri i canali in un'altra app", IS_ANDROID ? "Il tocco su un canale apre VLC, MX Player o l'app che scegli." : IS_IOS ? "Il tocco su un canale apre VLC (se installato)." : "Disponibile su Android e iPhone. Sul computer resta il lettore interno.", CFG.player === "external", v => set("player", v ? "external" : "internal")),
     swRow("cfgResume", "Riapri l'ultimo canale all'avvio", null, CFG.resume, v => set("resume", v)),
+    swRow("cfgSlow", "Internet lento", "Tiene sempre una scorta di video più grande: i canali vanno più fluidi con una connessione debole, ma la diretta arriva con qualche secondo di ritardo. Anche se è spento, l'app aumenta la scorta da sola quando il video si blocca.", CFG.slowNet, v => set("slowNet", v)),
     h("div", { class: "set-sec", text: "Playlist" }),
     swRow("cfgAuto", "Aggiorna da sola le playlist con link", "Quando la apri, se è più vecchia di 24 ore.", CFG.autoRefresh, v => set("autoRefresh", v)),
     h("div", { class: "set-sec", text: "Dati" }),
     h("div", { class: "chips" },
       h("button", { class: "chip", type: "button", onclick: () => { if (!S.pl) return; S.recs = []; store.set("rec." + S.pl.id, []); if (S.tab === TAB_REC) render(true); toast("Recenti cancellati"); } }, "Cancella i recenti"),
       h("button", { class: "chip", type: "button", onclick: async () => { if (await installDefault(true)) toast("Lista predefinita ripristinata"); } }, "Ripristina la lista predefinita")),
-    h("details", { class: "adv" }, h("summary", { text: "Opzioni avanzate" }),
+    h("details", { class: "adv", ontoggle: e => { if (e.currentTarget.open) { const d = e.currentTarget; setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "start" }), 30); } } }, h("summary", { text: "Opzioni avanzate" }),
       h("div", { class: "adv-b" },
         field("Proxy (facoltativo)", proxy, "Solo per utenti esperti: un tuo server che legge i canali al posto del browser. L'indirizzo del canale viene aggiunto in fondo, oppure al posto di {url}."),
         swRow("cfgProxyVideo", "Usa il proxy anche per i video", "Se spento, il proxy serve solo per playlist, guida TV e canali http.", CFG.proxyVideo, v => set("proxyVideo", v)))),
@@ -1885,6 +1907,141 @@ function helpDialog() {
     h("p", { text: "Tivù Player non fornisce canali: riproduce le playlist che aggiungi tu. Usa solo contenuti che hai il diritto di guardare." }),
   ], actions: [{ label: "Ho capito", primary: true }] });
 }
+
+// ======================= internet lento: scorta di video e riconnessione =======================
+// - se il video si blocca, l'app lo ferma un attimo e riparte solo quando ha una scorta sufficiente (niente «parte e si
+//   riblocca»); dal secondo blocco in poco tempo la scorta diventa grande (circa 15 s) e i lettori ne tengono di piu'
+// - se durante la visione la rete cade o il server smette di rispondere, l'app ritenta da sola per 2 minuti (1, 2, 4, 8,
+//   15 s...) e riparte appena torna la connessione, invece di mostrare subito un errore
+// - un controllo ogni 5 s si accorge del video fermo senza nessun errore (server che non risponde piu') e ricollega
+const NET = { stalls: [], rebuf: null, recon: null, lastT: -1, lastMove: 0, big: false, t0pos: 0 };
+function slowNet() {
+  if (CFG.slowNet || NET.big) return true;
+  const c = navigator.connection; return !!(c && (c.saveData || /(^|-)2g|^3g/.test(c.effectiveType || "")));
+}
+function hlsNetOpts() {
+  return slowNet()
+    ? { liveSyncDurationCount: 5, maxBufferLength: 60, maxMaxBufferLength: 120, fragLoadingTimeOut: 40000, manifestLoadingTimeOut: 20000, levelLoadingTimeOut: 20000, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }
+    : { liveSyncDurationCount: 3, maxBufferLength: 30, maxMaxBufferLength: 90 };
+}
+function bufAhead() {
+  const b = video.buffered, t = video.currentTime;
+  for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.5 && b.end(i) > t) return b.end(i) - t;
+  return 0;
+}
+function liveDetails() {
+  const h = P.hls; if (!h || !h.levels || !h.levels.length) return null;
+  const lv = h.levels[h.currentLevel] || h.levels[h.loadLevel] || h.levels[0], d = lv && lv.details;
+  return d && d.live && d.fragments && d.fragments.length ? d : null;
+}
+// la diretta tiene solo gli ultimi minuti (o secondi): se il punto in cui siamo e' gia' uscito, si salta al primo punto
+// ancora disponibile vicino alla diretta, invece di restare bloccati per sempre
+function liveWindowFix() {
+  const d = liveDetails(); if (!d) return false;
+  const start = d.fragments[0].start;
+  if (video.currentTime >= start + 0.5) return false;
+  const to = (P.hls && P.hls.liveSyncPosition) || (start + Math.max(1, d.totalduration - d.targetduration * 3));
+  try { video.currentTime = Math.max(start + 0.5, to); } catch (e) {}
+  return true;
+}
+function stopRebuffer() { if (NET.rebuf) clearInterval(NET.rebuf.iv); NET.rebuf = null; P.autoPause = false; }
+function netReset() { stopRebuffer(); if (NET.recon) clearTimeout(NET.recon.t); NET.recon = null; NET.stalls = []; NET.lastT = -1; NET.lastMove = Date.now(); NET.t0pos = video.currentTime || 0; }
+function growBuffers() {   // dal secondo blocco: scorta piu' grande anche nei lettori
+  NET.big = true;
+  try { if (P.hls) Object.assign(P.hls.config, { maxBufferLength: 60, maxMaxBufferLength: 120, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }); } catch (e) {}
+  try { if (P.dash) P.dash.updateSettings({ streaming: { buffer: { bufferTimeAtTopQuality: 60, bufferTimeAtTopQualityLongForm: 90, stableBufferTime: 30 } } }); } catch (e) {}
+}
+function onStall() {
+  if (!P.started || NET.rebuf || NET.recon || video.seeking || $("player").hidden || !plan(P.ch.url).live) return;
+  if (video.currentTime - NET.t0pos < 2) return;   // appena partito o appena ricollegato: non e' un blocco vero
+  const now = Date.now(); NET.stalls = NET.stalls.filter(t => now - t < 90e3); NET.stalls.push(now);
+  const big = slowNet() || NET.stalls.length >= 2;
+  if (!big) return;   // primo blocco isolato: ci pensa il lettore, riparte appena ha un po' di video
+  if (!NET.big) growBuffers();
+  // scorta da raggiungere: 15 s, ma mai oltre meta' di quanto la diretta tiene disponibile (altrimenti non arriverebbe mai)
+  let goal = 15;
+  try { const d = liveDetails(); if (d && d.totalduration) goal = Math.max(3, Math.min(goal, d.totalduration * 0.5)); } catch (e) {}
+  const token = P.token, t0 = now; let best = bufAhead(), lastGrow = now;
+  P.autoPause = true; video.pause(); note("Internet lento: preparo una scorta di video…");
+  NET.rebuf = { goal, iv: setInterval(() => {
+    if (token !== P.token || !NET.rebuf) return stopRebuffer();
+    if (liveWindowFix()) { best = 0; lastGrow = Date.now(); }
+    const a = bufAhead(), t = Date.now(), el = t - t0;
+    if (a > best + 0.2) { best = a; lastGrow = t; }
+    let msg = "Internet lento: preparo una scorta di video… " + Math.min(99, Math.round(a / goal * 100)) + "%";
+    try { const L = P.hls && P.hls.levels, bw = P.hls && P.hls.bandwidthEstimate, min = L && L.length ? Math.min(...L.map(l => l.bitrate || Infinity)) : Infinity;
+      if (isFinite(min) && bw && bw < min * 0.9) msg = "Internet troppo lento per questo canale: il video andrà a scatti"; } catch (e) {}
+    note(msg);
+    // riparte con la scorta piena, oppure con quella che c'e' se non cresce piu' (rete al limite) o dopo 25 s
+    if (a >= goal || (a >= 1.5 && t - lastGrow > 6000) || (el > 25e3 && a >= 0.5)) {
+      stopRebuffer(); note(""); spin(false); NET.lastMove = t;
+      const pr = video.play(); if (pr && pr.catch) pr.catch(() => {});
+    } else if (el > 30e3 || (el > 15e3 && best < 0.5)) { stopRebuffer(); note(""); netLost({ kind: "timeout", det: "nessun dato da " + Math.round(el / 1000) + " s" }); }
+  }, 400) };
+}
+function netLost(e) {
+  if (!P.ch || $("player").hidden) return;
+  stopRebuffer();
+  if (!NET.recon) NET.recon = { n: 0, since: Date.now(), t: 0 };
+  const R = NET.recon; clearTimeout(R.t); R.err = e;
+  if (Date.now() - R.since > 120e3) { NET.recon = null; note(""); return showError(/network|timeout/.test(e.kind) ? { kind: "lost", det: e.det } : e, P.ch); }
+  spin(true);
+  if (navigator.onLine === false) { note("Sei senza connessione: il canale riparte da solo appena torna"); return; }   // riparte con l'evento «online»
+  const wait = [1, 2, 4, 8, 15][R.n] || 15;
+  note(R.n ? "Connessione persa: riprovo… (tentativo " + (R.n + 1) + ")" : "Connessione persa: riprovo…");
+  R.t = setTimeout(reconnectNow, wait * 1000);
+}
+async function reconnectNow() {
+  const R = NET.recon, st = P.step, ch = P.ch; if (!R || !st || !ch) return;
+  R.n++; clearTimeout(R.t);
+  const token = ++P.token; stopEngines(); P.started = false; P.retried = false;
+  try {
+    await attempt(st, token, P.proxied);
+    if (token !== P.token) return;
+    P.started = true; spin(false); NET.recon = null; NET.stalls = []; NET.lastMove = Date.now(); NET.t0pos = video.currentTime || 0;
+    note("Connessione ripristinata"); setTimeout(() => { if (P.token === token) note(""); }, 2500);
+  } catch (e) {
+    if (token !== P.token) return;
+    P.started = true; netLost(e.kind ? e : { kind: "network" });
+  }
+}
+addEventListener("online", () => {
+  if ($("player").hidden || !P.started && !NET.recon) return;
+  if (NET.recon) { note("Connessione tornata: riparto…"); reconnectNow(); return; }
+  note(""); try { if (P.hls) P.hls.startLoad(); } catch (e) {}   // riprende subito a scaricare, senza aspettare il prossimo tentativo
+});
+addEventListener("offline", () => {
+  if (!P.started || $("player").hidden || NET.recon) return;
+  if (bufAhead() > 2) note("Sei senza connessione: continuo con il video già scaricato");   // il blocco vero lo gestisce onStall/netLost
+  else netLost({ kind: "network", det: "dispositivo offline" });
+});
+video.addEventListener("error", () => { if (P.started && !$("player").hidden && P.step && !P.hls && !P.dash && !P.ts) netLost(classifyMedia(video.error, P.step.url)); });
+video.addEventListener("timeupdate", () => { if (video.currentTime !== NET.lastT) { NET.lastT = video.currentTime; NET.lastMove = Date.now(); } liveLag(); });
+// indietro rispetto alla diretta (dopo una pausa o con la scorta grande): pulsante «Torna alla diretta»
+let lagT = 0;
+function liveLag() {
+  const t = Date.now(); if (t - lagT < 1000) return; lagT = t;
+  let behind = 0;
+  try {
+    if (P.hls && P.started && liveDetails()) behind = (P.hls.latency || 0) - (P.hls.targetLatency || 0);
+    else if (P.dash && P.started && P.dash.isDynamic && P.dash.isDynamic()) behind = (P.dash.getCurrentLiveLatency() || 0) - (P.dash.getTargetLiveDelay ? P.dash.getTargetLiveDelay() : 0);
+  } catch (e) {}
+  $("pLive").hidden = !(behind > 25);
+}
+function goLive() {
+  try {
+    if (P.hls && P.hls.liveSyncPosition) video.currentTime = P.hls.liveSyncPosition;
+    else if (P.dash && P.dash.seekToOriginalLive) P.dash.seekToOriginalLive();
+  } catch (e) {}
+  $("pLive").hidden = true; if (video.paused) { const pr = video.play(); if (pr && pr.catch) pr.catch(() => {}); }
+}
+$("pLive").addEventListener("click", e => { e.stopPropagation(); goLive(); showUi(); });
+setInterval(() => {   // video fermo senza errori: il server non manda piu' niente
+  if (!P.started || $("player").hidden || NET.rebuf || NET.recon || !$("pMsg").hidden || document.hidden) return;
+  if (video.paused && !P.autoPause) { NET.lastMove = Date.now(); return; }   // in pausa per scelta: va bene
+  if (Date.now() - NET.lastMove > 8e3 && liveWindowFix()) return;   // rimasto indietro rispetto alla diretta: si salta avanti
+  if (Date.now() - NET.lastMove > 25e3 && bufAhead() < 1) netLost({ kind: "timeout", det: "video fermo da 25 s" });
+}, 5000);
 
 // ======================= installa come app =======================
 let installEvt = null;
@@ -1946,7 +2103,43 @@ document.addEventListener("keydown", e => {
   }
   if (e.key === "Escape") { const L = topLayer(); if (L) closeLayer(L); }
   else if (e.key === "/" && !layers.length) { e.preventDefault(); openSearch(); }
+  else if (DIRS[e.key]) {   // telecomando / tastiera: le frecce spostano la selezione sull'elemento piu' vicino in quella direzione
+    const box = topBox(); if (spatialMove(box, DIRS[e.key])) e.preventDefault();
+  }
+  else if ((e.key === "ContextMenu" || e.key === "i" || e.key === "Info") && !layers.length) {
+    const el = document.activeElement, b = el && el.closest && el.closest("#list .ch"); const ch = b && byKey().get(b.dataset.k);
+    if (ch) { e.preventDefault(); channelSheet(ch); }
+  }
 });
+const DIRS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+const FOCUSABLE = "button:not([disabled]):not([hidden]), [role=button][tabindex], input:not([type=hidden]), select, textarea, summary, a[href]";
+function topBox() {   // il livello aperto in cima (finestra, foglio, menu, guida) oppure la schermata principale
+  const open = [...document.querySelectorAll(".dlg-wrap, .sheet, .menu, .drawer, .epg-wrap")];
+  return open.length ? open[open.length - 1] : $("app");
+}
+function spatialMove(box, dir) {
+  const items = [...box.querySelectorAll(FOCUSABLE)].filter(el => { if (el.closest("[hidden]")) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+  if (!items.length) return false;
+  const cur = document.activeElement;
+  if (!items.includes(cur)) { const first = box === $("app") ? (box.querySelector("#list .ch") || items[0]) : items[0]; first.focus(); first.scrollIntoView({ block: "nearest", inline: "nearest" }); return true; }
+  const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, vert = dir === "up" || dir === "down";
+  // prima gli elementi sulla stessa riga (o colonna), poi gli altri
+  let best = null, bd = Infinity;
+  for (const pass of [true, false]) {
+    for (const el of items) {
+      if (el === cur) continue;
+      const q = el.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
+      if (!(dir === "down" ? dy > 4 : dir === "up" ? dy < -4 : dir === "right" ? dx > 4 : dx < -4)) continue;
+      if (pass && !(vert ? q.left < r.right && q.right > r.left : q.top < r.bottom && q.bottom > r.top)) continue;
+      const d = (vert ? Math.abs(dy) : Math.abs(dx)) + (vert ? Math.abs(dx) : Math.abs(dy)) * 2.2;
+      if (d < bd) { bd = d; best = el; }
+    }
+    if (best) break;
+  }
+  if (!best) return false;
+  best.focus({ preventScroll: true }); best.scrollIntoView({ block: "nearest", inline: "nearest" });
+  return true;
+}
 
 // ======================= avvio =======================
 (async function boot() {
