@@ -541,11 +541,34 @@ html.tv.has-mini #main { padding-bottom: 96px; }
 .p-freeze.out { opacity: 0; }
 #player.fit-cover .p-freeze { object-fit: cover; }
 #player.fit-fill .p-freeze { object-fit: fill; }
+.upd { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px;
+  background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px rgba(0, 0, 0, .3); position: relative; z-index: 3; }
+.upd .upd-i { flex: none; display: grid; place-items: center; }
+.upd .upd-i .i { width: 22px; height: 22px; }
+.upd .tx { flex: 1; min-width: 0; }
+.upd .tx b { display: block; font-size: 14.5px; font-weight: 800; }
+.upd .tx small { display: block; font-size: 12.5px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upd .btn.primary { background: var(--on-accent); color: var(--accent); height: 38px; padding: 0 16px; flex: none; }
+.upd .ib { width: 40px; height: 40px; flex: none; }
+.nw { padding: 4px 20px 14px; }
+.nw-v { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 4px; }
+.nw-v b { font-size: 15px; font-weight: 700; color: var(--accent); }
+.nw-v small { font-size: 12.5px; color: var(--muted); }
+.nw-l { margin: 0; padding-left: 20px; line-height: 1.55; }
+.nw-l li { margin: 3px 0; }
+.nw-no { color: var(--muted); }
+html.tv .upd .tx b { font-size: 17px; } html.tv .upd .tx small { font-size: 14px; }
 </style>
 
 </head>
 <body>
 <div id="app">
+<div class="upd" id="upd" hidden role="status">
+    <span class="upd-i" id="updIcon"></span>
+    <div class="tx"><b>C'è una nuova versione</b><small id="updSub">Aggiorna per avere le ultime novità</small></div>
+    <button class="btn primary" id="updGo" type="button">Aggiorna</button>
+    <button class="ib" id="updX" type="button" aria-label="Più tardi"></button>
+  </div>
   <header class="top">
     <div class="appbar" id="appbar">
       <button class="ib" id="btnMenu" type="button" aria-label="Apri il menu"></button>
@@ -1061,6 +1084,7 @@ function openDrawer() {
   body.append(h("div", { class: "dr-sep" }));
   body.append(h("button", { class: "dr-item", type: "button", onclick: go(settingsDialog) }, icon("settings"), h("span", { class: "tx" }, h("b", { text: "Impostazioni" }))));
   body.append(h("button", { class: "dr-item", type: "button", onclick: go(helpDialog) }, icon("info"), h("span", { class: "tx" }, h("b", { text: "Come si usa" }))));
+  body.append(h("button", { class: "dr-item", type: "button", onclick: go(() => newsSheet()) }, icon("refresh"), h("span", { class: "tx" }, h("b", { text: "Novità" }), h("small", { text: "Versione " + APP_VER }))));
   dr.append(head, body); document.body.append(scrim, dr);
   const L = pushLayer(() => { scrim.remove(); dr.remove(); });
   scrim.addEventListener("click", () => closeLayer(L));
@@ -2235,6 +2259,76 @@ function helpDialog() {
   ], actions: [{ label: "Ho capito", primary: true }] });
 }
 
+// ======================= aggiornamenti =======================
+// L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
+// ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
+// alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
+const APP_VER = "1.8.0";
+let NEWS = null, updReady = "", updCheck = 0;
+function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
+function verNewer(a, b) {   // a e' piu' recente di b?
+  const x = verNum(a), y = verNum(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d > 0; }
+  return false;
+}
+async function loadNews() {
+  try {
+    const r = await fetch(new URL("novita.json", location.href).href + "?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (Array.isArray(d) && d.length && d[0].v) { NEWS = d; return d; }
+  } catch (e) {}
+  return null;
+}
+async function checkUpdate(force) {
+  if (FRAMED || !navigator.onLine) return;
+  if (!force && Date.now() - updCheck < 10 * 60e3) return;
+  updCheck = Date.now();
+  const d = await loadNews(); if (!d) return;
+  if (verNewer(d[0].v, APP_VER)) showUpdateBar(d[0]);
+}
+function showUpdateBar(top) {
+  if (updReady === top.v || store.get("updSkip", "") === top.v) return;
+  updReady = top.v;
+  const first = (top.n && top.n[0]) || "";
+  $("updSub").textContent = "Versione " + top.v + (first ? " · " + first : "");
+  $("upd").hidden = false;
+}
+async function applyUpdate(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Aggiorno…"; }
+  try {   // il nuovo codice e' gia' pronto: si lascia subentrare prima di ricaricare
+    const reg = "serviceWorker" in navigator && await navigator.serviceWorker.getRegistration();
+    if (reg) { await reg.update().catch(() => {}); if (reg.waiting) reg.waiting.postMessage({ t: "skipWaiting" }); }
+  } catch (e) {}
+  setTimeout(() => location.reload(), 350);
+}
+// elenco delle novita': dopo un aggiornamento mostra solo quelle nuove, dal menu le mostra tutte
+function newsSheet(sinceVer) {
+  const show = () => {
+    const d = NEWS || [];
+    // si elencano solo le versioni gia' installate: quelle piu' nuove non sono ancora in uso
+    const list = d.filter(x => !verNewer(x.v, APP_VER) && (!sinceVer || verNewer(x.v, sinceVer)));
+    const body = h("div", { class: "nw" });
+    if (!list.length) body.append(h("p", { class: "nw-no", text: "Nessuna novità da mostrare." }));
+    for (const e of list.slice(0, 12)) {
+      const ul = h("ul", { class: "nw-l" }); for (const t of e.n || []) ul.append(h("li", { text: t }));
+      body.append(h("div", { class: "nw-v" }, h("b", { text: "Versione " + e.v }), e.d ? h("small", { text: itDate(e.d) }) : null), ul);
+    }
+    sheet(h("div", { class: "sh-head" }, icon("info"), h("div", { class: "tx" },
+      h("b", { text: sinceVer ? "Tivù Player si è aggiornato" : "Novità" }),
+      h("small", { text: sinceVer ? "Ecco cosa è cambiato" : "Versione " + APP_VER }))), [{ node: body }]);
+  };
+  if (NEWS) show(); else loadNews().then(show);
+}
+function itDate(d) { try { const x = new Date(d + "T12:00:00"); return x.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }); } catch (e) { return d; } }
+(() => {
+  setIcon($("updIcon"), "refresh"); setIcon($("updX"), "close");
+  $("updGo").addEventListener("click", e => applyUpdate(e.currentTarget));
+  $("updX").addEventListener("click", () => { if (updReady) store.set("updSkip", updReady); $("upd").hidden = true; });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => checkUpdate(), 1500); });
+  setInterval(() => checkUpdate(), 30 * 60e3);
+})();
+
 // ======================= cambio canale rapido =======================
 // La parte lenta di un cambio canale sono i «giri» in rete: la lista del canale (e, se c'e', la lista madre con le
 // qualita'). Mentre guardi, l'app tiene gia' pronte quelle dei canali sopra e sotto, cosi' il nuovo canale parte
@@ -2424,26 +2518,25 @@ function backToPip() {
     } catch (e) { openFromMini(); }
   }, 120);
 }
-function openFromMini() {   // dalla barretta si torna al lettore grande
+function openFromMini() {   // dalla barretta (o uscendo dalla finestrella) si torna al lettore grande
   exitPip(); pipMode(false);
-  if ($("player").hidden && P.ch) openPlayer(P.list.length ? P.list : S.chans, P.idx);
+  if ($("player").hidden && P.ch) { openPlayer(P.list.length ? P.list : S.chans, P.idx); return; }
+  if (P.started && video.paused && !P.autoPause) { const pr = video.play(); if (pr && pr.catch) pr.catch(() => {}); }   // il browser l'aveva fermato uscendo dalla finestrella
   showUi(true);
 }
 (() => {
   video.addEventListener("enterpictureinpicture", () => pipMode(true));
-  video.addEventListener("leavepictureinpicture", () => {
+  // uscendo dalla finestrella (tasto «ingrandisci» o chiusura) si torna sempre al lettore grande: non si chiude
+  // mai da solo. Per chiudere ci sono la ✕ della barretta e «indietro» a video fermo.
+  const leftPip = () => {
     if (!P.pip) return;
-    // chiudendo la finestrella il browser mette in pausa: allora si chiude il canale. Se invece sta ancora andando,
-    // vuol dire che si e' tornati all'app e si riapre il lettore grande.
     if (P.pipKeep && Date.now() - P.pipKeep < 12000) return;   // sta cambiando canale: la finestrella torna da sola
-    setTimeout(() => {
-      if (!P.pip || P.pipKeep) return;
-      if (video.paused) { pipMode(false); closePlayerNow(); } else openFromMini();
-    }, 200);
-  });
+    setTimeout(() => { if (P.pip && !P.pipKeep && !document.pictureInPictureElement) openFromMini(); }, 150);
+  };
+  video.addEventListener("leavepictureinpicture", leftPip);
   video.addEventListener("webkitpresentationmodechanged", () => {
     if (video.webkitPresentationMode === "picture-in-picture") pipMode(true);
-    else if (P.pip) { if (video.paused) { pipMode(false); closePlayerNow(); } else openFromMini(); }
+    else if (P.pip) { if (P.pipKeep && Date.now() - P.pipKeep < 12000) return; setTimeout(() => { if (P.pip && !P.pipKeep) openFromMini(); }, 150); }
   });
   $("miniOpen").addEventListener("click", openFromMini);
   $("miniPlay").addEventListener("click", e => { e.stopPropagation(); togglePlay(); setTimeout(updateMini, 50); });
@@ -2928,6 +3021,11 @@ function spatialMove(box, dir) {
   if (!store.get("seededDefault", false)) { if (S.pls.some(p => p.id === DEFAULT_PL.id) || await installDefault(false)) store.set("seededDefault", true); }
   setTimeout(() => { if (!FRAMED) loadScript(LIB.hls).catch(() => {}); }, 2500);
   loadLogoMap();
+  // appena aggiornata: si mostra cosa e' cambiato (non al primo avvio in assoluto)
+  const seen = store.get("verSeen", "");
+  store.set("verSeen", APP_VER);
+  if (seen && verNewer(APP_VER, seen)) setTimeout(() => newsSheet(seen), 1200);
+  setTimeout(() => checkUpdate(true), 4000);
   if (document.documentElement.classList.contains("tv")) setTimeout(() => {   // telecomando: si parte con un canale gia' selezionato
     if (layers.length || !$("player").hidden) return;
     const a = document.activeElement, busy = a && a.closest && a.closest("button,input,select,textarea,[role=button]");
