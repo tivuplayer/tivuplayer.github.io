@@ -1,30 +1,64 @@
 [
-  { "v": "1.8.0", "d": "2026-11-26", "n": [
-    "Cambio canale quasi istantaneo: da circa mezzo secondo a meno di un decimo",
-    "Niente più schermo nero mentre il canale cambia: resta l'ultima immagine",
-    "Uscendo dalla finestrella il lettore torna grande invece di chiudersi",
-    "Avviso quando c'è una nuova versione, con l'elenco delle novità"
-  ] },
-  { "v": "1.7.0", "d": "2026-11-25", "n": [
-    "Il canale continua in una finestrella quando esci dal lettore o dall'app",
-    "In finestrella il resto dell'app resta usabile, con una barretta in basso"
-  ] },
-  { "v": "1.6.0", "d": "2026-11-25", "n": [
-    "Lettore rinnovato: programma in onda, quanto manca e cosa viene dopo",
-    "Programmazione completa del canale, ora per ora, divisa per giorni",
-    "Scelta di audio, sottotitoli e qualità video"
-  ] },
-  { "v": "1.5.0", "d": "2026-11-25", "n": [
-    "Lista dei canali mentre guardi: scorri in su sul video",
-    "Modalità TV per smart TV e decoder, con i tasti del telecomando"
-  ] },
-  { "v": "1.4.0", "d": "2026-11-25", "n": [
-    "Guida TV con la programmazione delle prossime ore",
-    "Connessioni lente e cadute di rete gestite da sole",
-    "Loghi dei canali più leggeri e sempre leggibili"
-  ] },
-  { "v": "1.3.0", "d": "2026-11-24", "n": [
-    "Rai 1, Rai 2 e La 7 riprodotte tramite altre fonti della stessa lista",
-    "Decodificatore avanzato per i formati che il browser non legge"
-  ] }
+  {
+    "v": "1.9.0",
+    "d": "2026-11-26",
+    "n": [
+      "La qualità video si adatta meglio: la velocità della connessione viene ricordata da un canale all'altro, così il canale parte subito alla qualità giusta",
+      "Dopo un calo di linea la qualità risale da sola invece di restare bassa",
+      "Nuova impostazione «Qualità video»: Automatica, Massima o Risparmio dati",
+      "Con il risparmio dati del telefono o in 2G la qualità si abbassa da sola"
+    ]
+  },
+  {
+    "v": "1.8.0",
+    "d": "2026-11-26",
+    "n": [
+      "Cambio canale quasi istantaneo: da circa mezzo secondo a meno di un decimo",
+      "Niente più schermo nero mentre il canale cambia: resta l'ultima immagine",
+      "Uscendo dalla finestrella il lettore torna grande invece di chiudersi",
+      "Avviso quando c'è una nuova versione, con l'elenco delle novità"
+    ]
+  },
+  {
+    "v": "1.7.0",
+    "d": "2026-11-25",
+    "n": [
+      "Il canale continua in una finestrella quando esci dal lettore o dall'app",
+      "In finestrella il resto dell'app resta usabile, con una barretta in basso"
+    ]
+  },
+  {
+    "v": "1.6.0",
+    "d": "2026-11-25",
+    "n": [
+      "Lettore rinnovato: programma in onda, quanto manca e cosa viene dopo",
+      "Programmazione completa del canale, ora per ora, divisa per giorni",
+      "Scelta di audio, sottotitoli e qualità video"
+    ]
+  },
+  {
+    "v": "1.5.0",
+    "d": "2026-11-25",
+    "n": [
+      "Lista dei canali mentre guardi: scorri in su sul video",
+      "Modalità TV per smart TV e decoder, con i tasti del telecomando"
+    ]
+  },
+  {
+    "v": "1.4.0",
+    "d": "2026-11-25",
+    "n": [
+      "Guida TV con la programmazione delle prossime ore",
+      "Connessioni lente e cadute di rete gestite da sole",
+      "Loghi dei canali più leggeri e sempre leggibili"
+    ]
+  },
+  {
+    "v": "1.3.0",
+    "d": "2026-11-24",
+    "n": [
+      "Rai 1, Rai 2 e La 7 riprodotte tramite altre fonti della stessa lista",
+      "Decodificatore avanzato per i formati che il browser non legge"
+    ]
+  }
 ]

@@ -780,7 +780,7 @@ const DB = (() => {
 })();
 
 // ======================= impostazioni =======================
-const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, tvMode: "auto", autoPip: true, proxy: "", proxyVideo: false, sort: "orig" };
+const DEF = { view: "grid", tile: "m", logos: true, player: "internal", resume: false, autoRefresh: true, slowNet: false, tvMode: "auto", autoPip: true, quality: "auto", proxy: "", proxyVideo: false, sort: "orig" };
 const CFG = Object.assign({}, DEF, store.get("settings", {}));
 function saveCfg() { store.set("settings", CFG); }
 function tvOn() { return CFG.tvMode === "on" || (CFG.tvMode !== "off" && IS_TV); }
@@ -1852,6 +1852,7 @@ function plan(url) {
 }
 async function playIdx(idx) {
   const ch = P.list[idx]; if (!ch) return;
+  probeAt = 0; probeWait = 12000; probeLv = -1;
   freezeFrame();   // si tiene l'ultimo fotogramma al posto del nero, finche' il nuovo canale non parte
   P.idx = idx; P.ch = ch; P.started = false; P.retried = false; P.step = null; const token = ++P.token; netReset(); $("pLive").hidden = true;
   if (P.pip) { P.pipKeep = Date.now(); updateMini(); }   // cambio canale dalla barretta: si prova a restare in finestrella
@@ -1933,7 +1934,7 @@ function attempt(st, token, proxied) {
       if (st.e === "hls" || st.e === "hlsx") {
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
-        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: true, backBufferLength: 15, startLevel: 0, ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: CFG.quality !== "max", backBufferLength: 15, startLevel: 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
         if (!proxied) opts.pLoader = makePLoader(Hls.DefaultConfig.loader);   // liste gia' pronte: il canale parte senza aspettare
         if (st.e === "hlsx") {
           try { await decLoad(note); } catch (e) { return ko({ kind: "unknown", det: "decodificatore non caricato: " + (e && e.message || e) }); }
@@ -1973,6 +1974,8 @@ function attempt(st, token, proxied) {
           P.peek = peek;
         }
         const hls = new Hls(opts);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => applyQuality());
+        hls.on(Hls.Events.LEVEL_SWITCHED, () => { if (P.hls === hls) bwRemember(hls.bandwidthEstimate); });
         hls.on(Hls.Events.BUFFER_CODECS, (_, d) => { P.hlsTracks = { v: !!(P.hlsTracks && P.hlsTracks.v) || !!(d.video || d.audiovideo), a: !!(P.hlsTracks && P.hlsTracks.a) || !!(d.audio || d.audiovideo) }; });
         if (st.e === "hls") hls.on(Hls.Events.FRAG_DECRYPTED, (_, d) => { if (P.peek && d && d.payload) P.peek(d.payload.buffer || d.payload); });
         P.hls = hls;
@@ -1995,6 +1998,7 @@ function attempt(st, token, proxied) {
           if (P.dash !== dp) return;
           if (!P.started) ko(e); else if (e.kind === "drm") showError(e, P.ch); else netLost(e);
         });
+        dp.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => applyQuality());
         dp.initialize(video, st.url, true);
       } else if (st.e === "ts" || st.e === "flv") {
         await loadScript(LIB.ts); if (token !== P.token) return ko({ kind: "stale" });
@@ -2217,6 +2221,8 @@ function settingsDialog() {
     h("div", { class: "set-sec", text: "Riproduzione" }),
     swRow("cfgExt", "Apri i canali in un'altra app", IS_ANDROID ? "Il tocco su un canale apre VLC, MX Player o l'app che scegli." : IS_IOS ? "Il tocco su un canale apre VLC (se installato)." : "Disponibile su Android e iPhone. Sul computer resta il lettore interno.", CFG.player === "external", v => set("player", v ? "external" : "internal")),
     swRow("cfgResume", "Riapri l'ultimo canale all'avvio", null, CFG.resume, v => set("resume", v)),
+    segRow("cfgQ", "Qualità video", [["auto", "Automatica"], ["max", "Massima"], ["data", "Risparmio dati"]], CFG.quality, v => { set("quality", v); applyQuality(); }),
+    h("p", { class: "set-hint", text: "Automatica: il lettore sceglie da solo in base a quanto va la connessione, e con il risparmio dati del telefono si abbassa. Massima: usa sempre la risoluzione più alta disponibile. Risparmio dati: resta sotto i 540p." }),
     swRow("cfgPip", "Continua in piccolo quando esci dal lettore", "Premendo «indietro», uscendo dall'app o aprendone un'altra, il canale continua in una finestrella e intanto usi il resto dell'app. Dove il browser non lo permette, il lettore si chiude come prima.", CFG.autoPip, v => set("autoPip", v)),
     swRow("cfgSlow", "Internet lento", "Tiene sempre una scorta di video più grande: i canali vanno più fluidi con una connessione debole, ma la diretta arriva con qualche secondo di ritardo. Anche se è spento, l'app aumenta la scorta da sola quando il video si blocca.", CFG.slowNet, v => set("slowNet", v)),
     h("div", { class: "set-sec", text: "Playlist" }),
@@ -2239,7 +2245,7 @@ function helpDialog() {
       li("Guardare un canale:", "toccalo. Nel lettore scorri a sinistra per il canale successivo e a destra per il precedente; tocca due volte per lo schermo intero."),
       li("Tutti i canali mentre guardi:", "scorri in su sul video (o tocca il pulsante ☰ in basso, o OK sul telecomando): dal basso esce la tendina con tutti i canali, quello in onda è evidenziato. Il video continua; per chiuderla trascinala in giù."),
       li("Cosa c'è adesso e dopo:", "in basso nel lettore vedi il programma in onda, quanto manca alla fine e cosa viene dopo. Toccalo (o scegli «Programmi» nella tendina) per tutta la programmazione del canale, ora per ora."),
-      li("Audio, sottotitoli e qualità:", "tocca l'ingranaggio nel lettore. Se il canale ha più lingue, sottotitoli o più qualità video, le trovi lì; altrimenti l'app te lo dice."),
+      li("Audio, sottotitoli e qualità:", "tocca l'ingranaggio nel lettore. Se il canale ha più lingue, sottotitoli o più qualità video, le trovi lì; altrimenti l'app te lo dice. La qualità si adatta da sola alla connessione: lì puoi anche fissarla."),
       li("Continua in piccolo:", "premendo «indietro», uscendo dall'app o aprendone un'altra, il canale continua in una finestrella e intanto usi il resto di Tivù Player. In basso resta una barretta con il canale: toccala per tornare al lettore grande, o la ✕ per chiudere. Si disattiva dalle impostazioni."),
       li("Preferiti:", "tocca la stella nel lettore, oppure tieni premuto un canale (o tocca ⋮ nella vista elenco) e scegli «Aggiungi ai preferiti»."),
       li("Guida TV:", "tocca l'orologio in alto per vedere cosa c'è adesso e nelle prossime ore su tutti i canali. Tocca un programma per i dettagli."),
@@ -2263,7 +2269,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "1.8.0";
+const APP_VER = "1.9.0";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2328,6 +2334,87 @@ function itDate(d) { try { const x = new Date(d + "T12:00:00"); return x.toLocal
   document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(() => checkUpdate(), 1500); });
   setInterval(() => checkUpdate(), 30 * 60e3);
 })();
+
+// ======================= qualita' video =======================
+// Il lettore sceglie da solo la qualita' guardando quanto va la connessione. Due cose lo rendono piu' sveglio:
+// la velocita' misurata viene ricordata da un canale all'altro (altrimenti ogni cambio ripartirebbe dalla
+// qualita' piu' bassa) e si tiene conto della scelta dell'utente e del tipo di connessione.
+function bwSaved() { const v = +store.get("bw", 0); return v > 250000 && v < 8e7 ? v : 0; }
+function bwRemember(v) {
+  if (!(v > 250000 && v < 8e7)) return;
+  const old = bwSaved();
+  store.set("bw", Math.round(old ? old * 0.65 + v * 0.35 : v));
+}
+function bwStart() {   // da cosa parte la stima quando si apre un canale
+  const c = navigator.connection, saved = bwSaved();
+  if (c && c.saveData) return 600000;
+  if (c && /(^|-)2g/.test(c.effectiveType || "")) return 400000;
+  if (c && /^3g/.test(c.effectiveType || "")) return 900000;
+  if (saved) return saved;
+  if (c && c.downlink) return Math.max(600000, c.downlink * 1e6 * 0.7);
+  return 1500000;
+}
+function dataSaver() {
+  if (CFG.quality === "data") return true;
+  if (CFG.quality !== "auto") return false;
+  const c = navigator.connection;
+  return !!(c && (c.saveData || /(^|-)2g/.test(c.effectiveType || "")));
+}
+// con il risparmio dati si sta sotto i 540p (o 1,6 Mb/s se l'altezza non e' dichiarata)
+function levelCap(levels) {
+  if (!levels || levels.length < 2 || !dataSaver()) return -1;
+  let best = 0;
+  levels.forEach((l, i) => { const h = l.height || 0; if ((h && h <= 540) || (!h && (l.bitrate || 0) <= 1.6e6)) best = Math.max(best, i); });
+  return best;
+}
+function applyQuality() {
+  const h = P.hls;
+  if (h && h.levels) {
+    try {
+      h.autoLevelCapping = levelCap(h.levels);
+      h.config.capLevelToPlayerSize = CFG.quality !== "max";
+    } catch (e) {}
+  }
+  const dp = P.dash;
+  if (dp && dp.updateSettings) {
+    try {
+      const lv = (dp.getBitrateInfoListFor && dp.getBitrateInfoListFor("video")) || [];
+      const max = dataSaver() && lv.length ? 1600 : 0;
+      dp.updateSettings({ streaming: { abr: { maxBitrate: { video: max || -1 }, limitBitrateByPortal: CFG.quality !== "max" } } });
+    } catch (e) {}
+  }
+}
+function qualityLabel() {
+  return { auto: "Automatica", max: "Massima", data: "Risparmio dati" }[CFG.quality] || "Automatica";
+}
+setInterval(() => { if (P.hls && P.started && !document.hidden) bwRemember(P.hls.bandwidthEstimate); }, 8000);
+// Quando la connessione peggiora la qualita' scende subito, ma per risalire il lettore dovrebbe prima «accorgersi»
+// che la linea e' tornata buona: e con i pezzi piccoli della bassa qualita' ci mette minuti. Ogni tanto, se la
+// scorta di video e' piena e non ci sono stati blocchi, si prova il gradino sopra: se regge resta, altrimenti
+// riscende da solo e si riprova piu' tardi.
+let probeAt = 0, probeWait = 12000, probeLv = -1;
+function qualityProbe() {
+  const h = P.hls;
+  if (!h || !P.started || document.hidden || $("player").hidden) return;
+  if (!h.levels || h.levels.length < 2 || !h.autoLevelEnabled) return;
+  if (dataSaver() || CFG.slowNet || NET.rebuf || NET.recon) return;
+  const now = Date.now();
+  if (probeLv >= 0) {   // esito del tentativo precedente
+    if (h.currentLevel >= probeLv) { probeWait = 12000; } else { probeWait = Math.min(probeWait * 2, 120000); }
+    probeLv = -1;
+  }
+  if (h.currentLevel < 0 || h.currentLevel >= h.maxAutoLevel) { probeWait = 12000; return; }
+  if (NET.stalls.filter(t => now - t < 20000).length) return;
+  // in diretta la scorta non puo' superare la distanza dal «vivo»: basta che sia piena
+  let pieno = 4;
+  try { const d = liveDetails(); if (d) pieno = Math.max(3, Math.min(8, (P.hls.config.liveSyncDurationCount || 3) * (d.targetduration || 2) * 0.6)); } catch (e) {}
+  if (bufAhead() < pieno) return;
+  if (now - probeAt < probeWait) return;
+  probeAt = now; probeLv = h.currentLevel + 1;
+  try { h.nextAutoLevel = probeLv; } catch (e) { probeLv = -1; }
+}
+setInterval(qualityProbe, 4000);
+try { if (navigator.connection) navigator.connection.addEventListener("change", () => { applyQuality(); if (P.hls) try { P.hls.config.abrEwmaDefaultEstimate = bwStart(); } catch (e) {} }); } catch (e) {}
 
 // ======================= cambio canale rapido =======================
 // La parte lenta di un cambio canale sono i «giri» in rete: la lista del canale (e, se c'e', la lista madre con le
@@ -2613,7 +2700,8 @@ function playerOptions() {
   // --- qualita' video
   if (hls && hls.levels && hls.levels.length > 1) {
     const auto = hls.autoLevelEnabled, lv = hls.levels;
-    const o = [{ v: -1, label: "Automatica", sub: auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione" }]
+    const bw = Math.round((hls.bandwidthEstimate || 0) / 1e5) / 10;
+    const o = [{ v: -1, label: "Automatica", sub: (auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione") + (bw > 0.1 ? "  ·  connessione " + bw + " Mb/s" : "") }]
       .concat(lv.map((l, i) => ({ v: i, label: qName(l) })).reverse());
     add(optGroup("Qualità video", o, auto ? -1 : hls.currentLevel, v => { try { hls.currentLevel = v; if (v >= 0) hls.loadLevel = v; } catch (e) {} }, () => closeLayer(L)));
   } else if (dp && dp.getBitrateInfoListFor) {
@@ -2770,7 +2858,7 @@ function slowNet() {
 function hlsNetOpts() {
   return slowNet()
     ? { liveSyncDurationCount: 5, maxBufferLength: 45, maxMaxBufferLength: 80, fragLoadingTimeOut: 40000, manifestLoadingTimeOut: 20000, levelLoadingTimeOut: 20000, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }
-    : { liveSyncDurationCount: 3, maxBufferLength: 30, maxMaxBufferLength: 90 };
+    : { liveSyncDurationCount: 3, maxBufferLength: 30, maxMaxBufferLength: 90, abrBandWidthUpFactor: 0.8, abrEwmaFastLive: 2.5 };
 }
 function bufAhead() {
   const b = video.buffered, t = video.currentTime;
