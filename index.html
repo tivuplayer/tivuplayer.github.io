@@ -522,6 +522,8 @@ html.tv .p-epg { background: rgba(0, 0, 0, .5); border-radius: 18px; }
 
 /* in finestrella: il lettore sparisce e si usa il resto dell'app, con una barretta in basso */
 #player.pip { opacity: 0; pointer-events: none; }
+#player.pip * { pointer-events: none; }   /* in finestrella l'app sotto si tocca e si naviga normalmente */
+#player.pip #pUi { visibility: hidden; }
 html.has-mini #main { padding-bottom: 76px; }
 .mini { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; align-items: center; gap: 4px;
   padding: 8px max(8px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 8px) max(8px, env(safe-area-inset-left, 0px));
@@ -558,6 +560,10 @@ html.tv.has-mini #main { padding-bottom: 96px; }
 .nw-l li { margin: 3px 0; }
 .nw-no { color: var(--muted); }
 html.tv .upd .tx b { font-size: 17px; } html.tv .upd .tx small { font-size: 14px; }
+html.tv .grid .ch-more { display: grid; position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; margin: 0; background: rgba(26, 23, 20, .75); border-radius: 50%; opacity: 0; }
+html.tv .grid .ch:hover .ch-more, html.tv .grid .ch:focus .ch-more, html.tv .grid .ch-more:focus { opacity: 1; }
+html.tv .ch-more:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+.adv:not([open]) .adv-b { display: none; }
 </style>
 
 </head>
@@ -594,16 +600,16 @@ html.tv .upd .tx b { font-size: 17px; } html.tv .upd .tx small { font-size: 14px
     <div id="sentinel" style="height:1px"></div>
     <div id="empty" class="empty" hidden></div>
   </main>
+  <div class="mini" id="mini" hidden aria-label="In riproduzione">
+    <button class="mini-open" id="miniOpen" type="button">
+      <span class="mini-av" id="miniAv"></span>
+      <span class="tx"><b id="miniName"></b><small id="miniProg"></small></span>
+    </button>
+    <button class="ib" id="miniPlay" type="button" aria-label="Pausa"></button>
+    <button class="ib" id="miniX" type="button" aria-label="Chiudi"></button>
+  </div>
 </div>
 
-<div class="mini" id="mini" hidden aria-label="In riproduzione">
-  <button class="mini-open" id="miniOpen" type="button">
-    <span class="mini-av" id="miniAv"></span>
-    <span class="tx"><b id="miniName"></b><small id="miniProg"></small></span>
-  </button>
-  <button class="ib" id="miniPlay" type="button" aria-label="Pausa"></button>
-  <button class="ib" id="miniX" type="button" aria-label="Chiudi"></button>
-</div>
 <section class="player" id="player" hidden aria-label="Lettore">
   <video id="video" playsinline webkit-playsinline preload="auto" autopictureinpicture></video>
   <canvas class="p-freeze" id="pFreeze" hidden aria-hidden="true"></canvas>
@@ -924,16 +930,19 @@ function tile(ch) {
   const grid = CFG.view === "grid";
   const b = h("button", { class: "ch", type: "button", "data-k": ch.key, title: grid ? ch.name : null });
   b.append(avatar(ch));
-  if (grid) { b.append(h("span", { class: "nm", text: ch.name })); if (isFav(ch)) b.append(h("span", { class: "favdot" }, icon("star"))); }
+  if (grid) { b.append(h("span", { class: "nm", text: ch.name })); if (isFav(ch)) b.append(h("span", { class: "favdot" }, icon("star"))); if (tvOn()) b.append(chMore(ch)); }
   else {
     const tx = h("span", { class: "tx" }, h("span", { class: "nm", text: ch.name }));
     const e = epgLine(ch);
     if (e) { tx.append(h("span", { class: "sub ep", text: e.text }), h("span", { class: "pb" }, h("i", { style: "width:" + Math.round(e.pct * 100) + "%" }))); }
     else if (ch.group && (S.tab === TAB_ALL || S.tab === TAB_FAV || S.tab === TAB_REC || S.q)) tx.append(h("span", { class: "sub", text: ch.group }));
     b.append(tx); if (isFav(ch)) b.append(h("span", { class: "favdot" }, icon("star")));
-    b.append(h("span", { class: "ch-more", role: "button", "aria-label": "Opzioni di " + ch.name, title: "Opzioni" }, icon("more")));
+    b.append(chMore(ch));
   }
   return b;
+}
+function chMore(ch) {
+  return h("span", { class: "ch-more", role: "button", tabindex: "0", "aria-label": "Opzioni di " + ch.name, title: "Opzioni" }, icon("more"));
 }
 function refreshTileFav(ch) {
   const b = $("list").querySelector('[data-k="' + ch.key + '"]'); if (!b) return;
@@ -947,7 +956,15 @@ function render(reset) {
     list.className = CFG.view === "grid" ? "grid" : "rows";
     $("resHead").hidden = !S.q; if (S.q) $("resHead").textContent = S.list.length ? S.list.length + (S.list.length === 1 ? " canale trovato" : " canali trovati") + " per «" + S.q + "»" : "";
   }
-  renderMore(); renderEmpty();
+  renderMore(); renderEmpty(); tvAutoFocus();
+}
+// in TV si parte sempre con un canale gia' scelto: col telecomando non si resta mai senza selezione
+function tvAutoFocus() {
+  if (!tvOn() || layers.length || !$("player").hidden) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && a !== document.documentElement && document.body.contains(a)) return;
+  const f = $("list").querySelector(".ch") || $("main").querySelector(".tab");
+  if (f) f.focus({ preventScroll: true });
 }
 function renderMore() {
   if (S.shown >= S.list.length) return;
@@ -1005,6 +1022,7 @@ function arm() { if (FRAMED || armed) return; try { history.pushState({ tivu: 1 
 function pushLayer(closeFn) {
   if (!$("player").hidden && P.layer) note("");   // si apre qualcosa sopra il lettore: via l'avviso, altrimenti si sovrappone
   const L = { closeFn, open: true, focus: document.activeElement }; layers.push(L);
+  if (tvOn()) setTimeout(() => { const b = topBox(); if (b && !b.contains(document.activeElement)) focusFirstIn(b); }, 70);
   clearTimeout(backT); backT = 0; arm();
   return L;
 }
@@ -1901,7 +1919,7 @@ async function playIdx(idx) {
         P.started = true; spin(false); unfreeze(); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
         altRemember(ch, st.alt); winRemember(ch, st);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
-        else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note("Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
+        else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note(tvOn() ? "Su e giù cambiano canale, OK mostra i comandi, i numeri sintonizzano" : "Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
       }
       return;
@@ -2140,8 +2158,22 @@ video.addEventListener("pause", () => { updateMini(); if (P.autoPause) return; s
 video.addEventListener("volumechange", () => setIcon($("pMute"), video.muted ? "volX" : "vol"));
 $("pRange").addEventListener("input", () => { P.seeking = true; const d = video.duration; if (isFinite(d)) $("pCur").textContent = dur($("pRange").value / 1000 * d); showUi(); });
 $("pRange").addEventListener("change", () => { const d = video.duration; if (isFinite(d)) video.currentTime = $("pRange").value / 1000 * d; P.seeking = false; });
-function showUi(sticky) { $("pUi").classList.add("show"); clearTimeout(P.hideT); if (!sticky) scheduleHide(); }
-function scheduleHide() { clearTimeout(P.hideT); P.hideT = setTimeout(() => { if (!video.paused && $("pMsg").hidden) $("pUi").classList.remove("show"); }, 3500); }
+function showUi(sticky) { $("pUi").classList.add("show"); clearTimeout(P.hideT); if (!sticky) scheduleHide(); else if (tvOn()) scheduleHide(9000); }
+function tvHint() {
+  if (!tvOn() || store.get("tvHint", false)) return;
+  store.set("tvHint", true);
+  toast("Col telecomando: frecce per scegliere, OK per aprire. Su e giù cambiano canale, i numeri sintonizzano.", 7000);
+}
+function hideUi() { clearTimeout(P.hideT); $("pUi").classList.remove("show"); try { if (document.activeElement && $("pUi").contains(document.activeElement)) document.activeElement.blur(); } catch (e) {} }
+function scheduleHide(ms) { clearTimeout(P.hideT); P.hideT = setTimeout(() => { if (!video.paused && $("pMsg").hidden) hideUi(); }, ms || (tvOn() ? 9000 : 3500)); }
+// col telecomando ogni finestra che si apre ha gia' qualcosa di selezionato
+function focusFirstIn(box, preferito) {
+  if (!box) return;
+  const items = focusable(box); if (!items.length) return;
+  const p = preferito && box.querySelector(preferito);
+  const el = (p && items.includes(p)) ? p : items[0];
+  try { el.focus({ preventScroll: true }); el.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {}
+}
 function togglePlay() {
   if (NET.rebuf) { stopRebuffer(); setIcon($("pPlay"), "play"); spin(false); return; }   // in attesa della scorta: il tocco mette in pausa davvero
   if (video.paused) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } else video.pause(); }
@@ -2253,7 +2285,11 @@ function helpDialog() {
       li("Se un canale non parte:", "l'app prova da sola altri modi e altre fonti della lista. Se non basta, «Apri in un'altra app» lo apre con VLC."),
       li("Altre playlist:", "dal menu ☰ → «Aggiungi playlist», con un link, un file o un accesso Xtream."),
       li("Sulla TV:", "con Chrome compare il pulsante Trasmetti quando c'è un Chromecast sulla stessa rete."),
-      li("Col telecomando:", "le frecce si spostano, OK apre, «indietro» chiude. Mentre guardi: su e giù (o CH+/CH−) cambiano canale, OK apre la tendina dei canali e i tasti numerici sintonizzano un canale per numero.")),
+      ...(tvOn() ? [
+        li("Col telecomando:", "le frecce spostano la selezione (il riquadro scelto ha il bordo colorato), OK apre, «indietro» torna. Tutto si raggiunge con le frecce: pillole, pulsanti in alto, impostazioni e i «⋮» dei canali."),
+        li("Col telecomando nel video:", "su e giù (o CH+ e CH−) cambiano canale, i numeri sintonizzano il canale, OK mostra i comandi e con le frecce li percorri; «indietro» prima toglie i comandi e poi esce."),
+        li("Se la TV non viene riconosciuta:", "in Impostazioni → «Modalità TV» scegli «Sempre»: riquadri e scritte diventano grandi e il telecomando guida la selezione.")] : []),
+      li("Installala:", "quando il browser lo permette, nel menu ⋮ compare «Installa come app»: si apre a schermo intero come un'applicazione.")),
     h("details", { class: "adv" }, h("summary", { text: "Formati supportati" }),
       h("ul", { class: "help adv-b" },
         li("Playlist:", "M3U e M3U8 (gruppi da group-title, loghi da tvg-logo), Xtream Codes."),
@@ -2269,7 +2305,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "1.9.0";
+const APP_VER = "2.0.0";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3042,63 +3078,221 @@ function typeNumber(d) {
     if (inList >= 0) playIdx(inList); else { P.list = S.chans; P.listTab = TAB_ALL; playIdx(S.chans.indexOf(ch)); }
   }, 1200);
 }
+// Le frecce spostano la selezione sull'elemento piu' vicino; se non c'e' dove andare si scorre il contenuto,
+// cosi' col telecomando si arriva ovunque anche nei pannelli lunghi.
+function arrowNav(e) {
+  const dir = DIRS[e.key]; if (!dir) return false;
+  const box = topBox();
+  if (spatialMove(box, dir)) { e.preventDefault(); return true; }
+  if (dir === "up" || dir === "down") {
+    const cur = document.activeElement;
+    const sc = scrollerIn(box, cur && box.contains(cur) ? cur : box);
+    if (sc) {
+      const d = Math.max(80, Math.round(sc.clientHeight * 0.75)) * (dir === "down" ? 1 : -1);
+      const before = sc.scrollTop; sc.scrollBy({ top: d, behavior: "smooth" });
+      if (Math.abs(before - sc.scrollTop) > 0 || (dir === "down" ? before + sc.clientHeight < sc.scrollHeight - 2 : before > 2)) { e.preventDefault(); return true; }
+    }
+  }
+  if (dir === "left" || dir === "right") {
+    const box2 = topBox(), cur = document.activeElement;
+    const can = n => { if (!n || n === document.body) return false; const st = getComputedStyle(n); return /(auto|scroll)/.test(st.overflowX) && n.scrollWidth > n.clientWidth + 4; };
+    for (let n = cur && box2.contains(cur) ? cur : box2; n && n !== box2.parentElement; n = n.parentElement) {
+      if (can(n)) { n.scrollBy({ left: Math.round(n.clientWidth * 0.7) * (dir === "right" ? 1 : -1), behavior: "smooth" }); e.preventDefault(); return true; }
+    }
+  }
+  return false;
+}
+function openChannelMenuFromFocus() {
+  const el = document.activeElement, b = el && el.closest && el.closest("#list .ch, .pc-row");
+  if (!b) return false;
+  const ch = byKey().get(b.dataset.k); if (!ch) return false;
+  channelSheet(ch); return true;
+}
+// si governa la selezione con le frecce solo in TV o quando si sta davvero navigando da tastiera:
+// su telefono e PC mouse, tocco e scorrimento restano come prima
+let keyNav = false;   // su PC si passa alla navigazione da tastiera solo con il tasto Tab, e si torna indietro al primo clic
+addEventListener("pointerdown", () => { keyNav = false; }, true);
+addEventListener("keydown", e => { if (e.key === "Tab") keyNav = true; }, true);
+function navKeys() {
+  if (tvOn()) return true;
+  const a = document.activeElement;
+  return keyNav && !!a && a !== document.body && a !== document.documentElement;
+}
 document.addEventListener("keydown", e => {
-  if (e.target.closest && e.target.closest("input,textarea,select")) { if (isBackKey(e) && e.key !== "Backspace") { const L = topLayer(); if (L) closeLayer(L); } return; }
-  if (!$("player").hidden && topLayer() === P.layer) {
-    const k = e.key;
-    if (k >= "0" && k <= "9") { e.preventDefault(); showUi(); typeNumber(k); return; }
-    if (k === "ArrowUp" || k === "PageUp" || k === "ChannelUp" || k === "MediaTrackPrevious") { e.preventDefault(); zap(-1); }
-    else if (k === "ArrowDown" || k === "PageDown" || k === "ChannelDown" || k === "MediaTrackNext") { e.preventDefault(); zap(1); }
-    else if (k === " " || k === "k" || k === "MediaPlayPause" || k === "MediaPlay" || k === "MediaPause") { e.preventDefault(); togglePlay(); showUi(); }
-    else if (k === "f" || k === "F") toggleFull();
-    else if (k === "c" || k === "C" || (k === "Enter" && !(document.activeElement && document.activeElement.closest && document.activeElement.closest("#player button")))) { e.preventDefault(); openChPanel(); }
-    else if (k === "m" || k === "M") { video.muted = !video.muted; showUi(); }
-    else if (k === "MediaStop") { e.preventDefault(); closePlayer(); }
-    else if (k === "Escape" && !document.fullscreenElement) { e.preventDefault(); closePlayer(); }
-    else if (isBackKey(e) && !document.fullscreenElement) { e.preventDefault(); backFromPlayer(); }
-    else if (isBackKey(e)) { e.preventDefault(); toggleFull(); }   // a schermo intero, «indietro» torna alla finestra
-    else if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); if (isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); } else zap(k === "ArrowRight" ? 1 : -1); }
-    else showUi();
+  const inText = e.target.closest && e.target.closest("input:not([type=range]),textarea,select");
+  if (inText) {
+    // col telecomando si deve poter uscire da una casella di testo: su e giu' spostano la selezione
+    if (tvOn() && (e.key === "ArrowUp" || e.key === "ArrowDown") && arrowNav(e)) return;
+    if (isBackKey(e) && e.key !== "Backspace") { const L = topLayer(); if (L) closeLayer(L); }
     return;
   }
+  const inPlayer = !$("player").hidden && !P.pip && topLayer() === P.layer;
+  if (inPlayer) {
+    const k = e.key, uiOn = $("pUi").classList.contains("show");
+    if (k >= "0" && k <= "9") { e.preventDefault(); showUi(); typeNumber(k); return; }
+    // CH+/CH− e PagSu/PagGiu cambiano sempre canale, anche con i comandi in vista
+    if (k === "PageUp" || k === "ChannelUp" || k === "MediaTrackPrevious") { e.preventDefault(); zap(-1); return; }
+    if (k === "PageDown" || k === "ChannelDown" || k === "MediaTrackNext") { e.preventDefault(); zap(1); return; }
+    if (k === " " || k === "k" || k === "MediaPlayPause" || k === "MediaPlay" || k === "MediaPause") { e.preventDefault(); togglePlay(); showUi(true); return; }
+    if (k === "f" || k === "F") { toggleFull(); return; }
+    if (k === "m" || k === "M") { video.muted = !video.muted; showUi(true); return; }
+    if (k === "c" || k === "C") { e.preventDefault(); openChPanel("ch"); return; }
+    if (k === "MediaStop") { e.preventDefault(); closePlayer(); return; }
+    if (k === "Escape" && !document.fullscreenElement) { e.preventDefault(); if (uiOn && tvOn()) { hideUi(); return; } closePlayer(); return; }
+    if (isBackKey(e)) {
+      e.preventDefault();
+      if (document.fullscreenElement) { toggleFull(); return; }
+      if (uiOn && tvOn()) { hideUi(); return; }   // primo «indietro»: via i comandi
+      backFromPlayer(); return;
+    }
+    if (k === "Enter") {
+      const act = document.activeElement;
+      if (uiOn && act && $("pUi").contains(act)) {   // attiva il pulsante scelto
+        if (act.matches("[role=button][tabindex]")) { e.preventDefault(); act.click(); }
+        showUi(); return;
+      }
+      e.preventDefault();
+      if (tvOn()) { showUi(true); focusFirstIn($("pUi"), "#pPlay"); tvHint(); } else openChPanel("ch");
+      return;
+    }
+    if (DIRS[k]) {
+      const act = document.activeElement;
+      // sulla barra di avanzamento destra e sinistra spostano il punto del video, non la selezione
+      if (uiOn && act && act.id === "pRange" && (k === "ArrowLeft" || k === "ArrowRight")) { showUi(true); return; }
+      if (uiOn && navKeys()) {   // comandi in vista: le frecce li percorrono
+        showUi(true);
+        if (arrowNav(e)) return;
+        e.preventDefault(); return;
+      }
+      e.preventDefault();
+      if ((k === "ArrowLeft" || k === "ArrowRight") && isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); return; }
+      zap(k === "ArrowDown" || k === "ArrowRight" ? 1 : -1); return;
+    }
+    showUi(); return;
+  }
+  if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches && e.target.matches("[role=button][tabindex]")) { e.preventDefault(); e.target.click(); return; }
   if (isBackKey(e)) { const L = topLayer(); if (L) { e.preventDefault(); closeLayer(L); } }
   else if (e.key === "/" && !layers.length) { e.preventDefault(); openSearch(); }
-  else if (DIRS[e.key]) {   // telecomando / tastiera: le frecce spostano la selezione sull'elemento piu' vicino in quella direzione
-    const box = topBox(); if (spatialMove(box, DIRS[e.key])) e.preventDefault();
-  }
-  else if ((e.key === "ContextMenu" || e.key === "i" || e.key === "Info") && !layers.length) {
-    const el = document.activeElement, b = el && el.closest && el.closest("#list .ch"); const ch = b && byKey().get(b.dataset.k);
-    if (ch) { e.preventDefault(); channelSheet(ch); }
-  }
+  else if (DIRS[e.key]) arrowNav(e);   // fuori dal lettore le frecce spostano la selezione su tutti i dispositivi
+  else if (e.key === "ContextMenu" || e.key === "Info" || (e.key === "i" && !layers.length)) { if (openChannelMenuFromFocus()) e.preventDefault(); }
 });
 const DIRS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
 const FOCUSABLE = "button:not([disabled]):not([hidden]), [role=button][tabindex], input:not([type=hidden]), select, textarea, summary, a[href]";
 function topBox() {   // il livello aperto in cima (finestra, foglio, menu, guida) oppure la schermata principale
   const open = [...document.querySelectorAll(".dlg-wrap, .sheet, .menu, .drawer, .epg-wrap, .p-chl:not([hidden])")];
-  return open.length ? open[open.length - 1] : $("app");
+  if (open.length) return open[open.length - 1];
+  // lettore aperto con i comandi in vista: le frecce girano tra i suoi pulsanti, non tra i canali dietro
+  if (!$("player").hidden && !P.pip && $("pUi").classList.contains("show")) return $("pUi");
+  if (!$("mini").hidden && document.activeElement && $("mini").contains(document.activeElement)) return $("mini");
+  return $("app");
 }
-function spatialMove(box, dir) {
-  const items = [...box.querySelectorAll(FOCUSABLE)].filter(el => { if (el.closest("[hidden]")) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
-  if (!items.length) return false;
-  const cur = document.activeElement;
-  if (!items.includes(cur)) { const first = box === $("app") ? (box.querySelector("#list .ch") || items[0]) : items[0]; first.focus(); first.scrollIntoView({ block: "nearest", inline: "nearest" }); return true; }
-  const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, vert = dir === "up" || dir === "down";
-  // prima gli elementi sulla stessa riga (o colonna), poi gli altri
-  let best = null, bd = Infinity;
-  for (const pass of [true, false]) {
-    for (const el of items) {
-      if (el === cur) continue;
-      const q = el.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
-      if (!(dir === "down" ? dy > 4 : dir === "up" ? dy < -4 : dir === "right" ? dx > 4 : dx < -4)) continue;
-      if (pass && !(vert ? q.left < r.right && q.right > r.left : q.top < r.bottom && q.bottom > r.top)) continue;
-      const d = (vert ? Math.abs(dy) : Math.abs(dx)) + (vert ? Math.abs(dx) : Math.abs(dy)) * 2.2;
-      if (d < bd) { bd = d; best = el; }
-    }
-    if (best) break;
+function focusable(box, vicini) {
+  const vh = innerHeight || 720, vw = innerWidth || 1280, fuoco = document.activeElement, out = [];
+  for (const el of box.querySelectorAll(FOCUSABLE)) {
+    const r = el.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) continue;
+    // con «vicini» si guarda solo attorno a cio' che si vede: con liste lunghissime il telecomando resta immediato
+    if (vicini && el !== fuoco && !(r.bottom > -2 * vh && r.top < 3 * vh && r.right > -vw && r.left < 2 * vw)) continue;
+    if (el.closest("[hidden]")) continue;
+    const d = el.closest("details"); if (d && !d.open && !el.matches("summary")) continue;   // dentro una sezione chiusa
+    if (!(el.checkVisibility ? el.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true }) : getComputedStyle(el).visibility !== "hidden")) continue;
+    out.push(el);
   }
-  if (!best) return false;
-  best.focus({ preventScroll: true }); best.scrollIntoView({ block: "nearest", inline: "nearest" });
-  return true;
+  return out;
+}
+// contenitore che si puo' scorrere: col telecomando, se la selezione non si puo' spostare, si scorre il testo
+function scrollerIn(box, from) {
+  const can = n => { if (!n || n === document.body || n === document.documentElement) return false; const st = getComputedStyle(n); return /(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight + 4; };
+  for (let n = from; n && n !== box.parentElement; n = n.parentElement) if (can(n)) return n;
+  if (can(box)) return box;
+  return [...box.querySelectorAll("*")].find(can) || null;
+}
+// mappa di navigazione: gli elementi raggruppati in righe, come li vede l'occhio
+function navMap(box) {
+  const items = focusable(box, true);
+  if (!items.length) return null;
+  const sty = new Map(), rects = new Map(), gid = new Map();
+  const info = n => {   // una lettura di stile per ogni contenitore, non per ogni elemento
+    let v = sty.get(n);
+    if (!v) { const c = getComputedStyle(n); v = { sc: (/(auto|scroll)/.test(c.overflowY) && n.scrollHeight > n.clientHeight + 4) || (/(auto|scroll)/.test(c.overflowX) && n.scrollWidth > n.clientWidth + 4), fx: c.position === "fixed" }; sty.set(n, v); }
+    return v;
+  };
+  const nodes = [];
+  for (const el of items) {
+    const q0 = el.getBoundingClientRect();
+    let sc = null, sez = el, sopra = false;
+    for (let n = el.parentElement; n && n !== box.parentElement; n = n.parentElement) { const i = info(n); if (i.fx && n !== box) sopra = true; if (i.sc) { sc = n; break; } if (n.parentElement === box) sez = n; }
+    const grp = sc || sez;   // le fasce fuori dallo scorrimento (intestazione, finestrella, avviso) restano distinte
+    if (!gid.has(grp)) gid.set(grp, gid.size);   // i gruppi restano nell'ordine del documento
+    const q = q0, cs = getComputedStyle(el);
+    const fixo = cs.position === "sticky" || cs.position === "fixed";
+    const flot = sopra || cs.position === "fixed";   // sta in una fascia sovrapposta al resto   // le colonne "appiccicate" restano dove si vedono
+    let top = q.top, left = q.left;
+    if (sc) {   // dentro un riquadro scorrevole contano le coordinate del contenuto, non quelle a schermo
+      let sr = rects.get(sc); if (!sr) { sr = sc.getBoundingClientRect(); rects.set(sc, sr); }
+      if (!(fixo && (cs.top !== "auto" || cs.bottom !== "auto"))) top = q.top - sr.top + sc.scrollTop;
+      if (!(fixo && (cs.left !== "auto" || cs.right !== "auto"))) left = q.left - sr.left + sc.scrollLeft;
+    }
+    nodes.push({ el, g: gid.get(grp), fix: flot, top, vy: q.top + q.height / 2, bot: top + q.height, l: left, r: left + q.width, cx: left + q.width / 2, vl: q.left, vr: q.right, vx: q.left + q.width / 2 });
+  }
+  if (!nodes.length) return null;
+  nodes.sort((a, b) => a.g - b.g || a.top - b.top || a.cx - b.cx);
+  const lines = [];
+  for (const n of nodes) {
+    const L = lines[lines.length - 1];
+    if (L && L.g === n.g && n.top < L.bot - 6) { L.n.push(n); L.bot = Math.max(L.bot, n.bot); }   // stessa riga: si sovrappongono
+    else lines.push({ g: n.g, bot: n.bot, fx: n.fix, n: [n] });
+  }
+  for (const L of lines) L.n.sort((a, b) => a.cx - b.cx);
+  return { lines, nodes };
+}
+let navX = null;   // colonna "preferita": su e giu' non fanno scivolare la selezione di lato
+function spatialMove(box, dir) {
+  const m = navMap(box); if (!m) return false;
+  const cur = document.activeElement;
+  let li = -1, ii = -1;
+  for (let i = 0; i < m.lines.length; i++) { const j = m.lines[i].n.findIndex(n => n.el === cur); if (j >= 0) { li = i; ii = j; break; } }
+  if (li < 0) {   // niente di selezionato: si parte dall'inizio
+    const pref = box === $("app") ? box.querySelector("#list .ch") : null;
+    const t = (pref && m.nodes.find(n => n.el === pref)) || m.lines[0].n[0];
+    navX = null; navTo(t.el); return true;
+  }
+  const L = m.lines[li], c = L.n[ii], step = dir === "down" || dir === "right" ? 1 : -1;
+  let t = null;
+  if (dir === "left" || dir === "right") {
+    t = L.n[ii + step];
+    if (!t) { const NL = m.lines[li + step]; if (NL) t = step > 0 ? NL.n[0] : NL.n[NL.n.length - 1]; }   // fine riga: si passa alla riga vicina
+    if (t) navX = { g: t.g, x: t.cx };
+  } else {
+    let NL = m.lines[li + step];
+    if (NL && NL.g !== L.g) {   // si cambia fascia: si sceglie la riga piu' vicina a quella che si vede
+      const cand = m.lines.filter(x => x.g === NL.g);
+      const avanti = cand.filter(x => step > 0 ? x.n[0].vy > c.vy + 4 : x.n[0].vy < c.vy - 4);
+      const pool = avanti.length ? avanti : cand;
+      NL = pool.reduce((a, x) => Math.abs(x.n[0].vy - c.vy) < Math.abs(a.n[0].vy - c.vy) ? x : a, pool[0]);
+    }
+    if (!L.fx) {   // una fascia sovrapposta (finestrella, avvisi) si prende quando a schermo e' la piu' vicina
+      const flo = m.lines.filter(x => x.fx && x.g !== L.g && (step > 0 ? x.n[0].vy > c.vy + 4 : x.n[0].vy < c.vy - 4));
+      if (flo.length) {
+        const f = flo.reduce((a, x) => Math.abs(x.n[0].vy - c.vy) < Math.abs(a.n[0].vy - c.vy) ? x : a, flo[0]);
+        if (!NL || Math.abs(f.n[0].vy - c.vy) < Math.abs(NL.n[0].vy - c.vy)) NL = f;
+      }
+    }
+    if (NL) {   // la colonna piu' vicina della riga sopra o sotto
+      const same = NL.g === L.g, key = n => same ? n.cx : n.vx;
+      const lo = n => same ? n.l : n.vl, hi = n => same ? n.r : n.vr;
+      const mine = navX && navX.g === L.g ? navX.x : c.cx, k = same ? mine : c.vx;
+      const sopra = NL.n.filter(n => lo(n) - 1 <= k && k <= hi(n) + 1);   // chi sta proprio sotto (o sopra) la colonna
+      t = sopra.length ? sopra.reduce((a, n) => hi(n) - lo(n) > hi(a) - lo(a) ? n : a, sopra[0])   // il riquadro intero, non il suo "⋮"
+        : NL.n.reduce((a, n) => Math.abs(key(n) - k) < Math.abs(key(a) - k) ? n : a, NL.n[0]);
+      if (t) navX = { g: L.g, x: mine };
+    }
+  }
+  if (!t) return false;
+  navTo(t.el); return true;
+}
+function navTo(el) {
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 // ======================= avvio =======================
@@ -3114,11 +3308,7 @@ function spatialMove(box, dir) {
   store.set("verSeen", APP_VER);
   if (seen && verNewer(APP_VER, seen)) setTimeout(() => newsSheet(seen), 1200);
   setTimeout(() => checkUpdate(true), 4000);
-  if (document.documentElement.classList.contains("tv")) setTimeout(() => {   // telecomando: si parte con un canale gia' selezionato
-    if (layers.length || !$("player").hidden) return;
-    const a = document.activeElement, busy = a && a.closest && a.closest("button,input,select,textarea,[role=button]");
-    const f = $("list").querySelector(".ch"); if (f && !busy) f.focus({ preventScroll: true });
-  }, 400);   // il lettore piu' usato e' pronto prima del primo canale
+  if (document.documentElement.classList.contains("tv")) { setTimeout(tvAutoFocus, 400); setTimeout(tvAutoFocus, 1500); }   // telecomando: si parte con un canale gia' selezionato   // il lettore piu' usato e' pronto prima del primo canale
   const cur = store.get("cur", null), pl = S.pls.find(p => p.id === cur) || S.pls[0];
   if (pl) await selectPlaylist(pl, { boot: true }); else { renderTabs(); render(true); }
   initCast();

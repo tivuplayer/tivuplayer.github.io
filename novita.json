@@ -1,5 +1,19 @@
 [
   {
+    "v": "2.0.0",
+    "d": "2026-11-27",
+    "n": [
+      "Si usa tutta l'app col solo telecomando: frecce per spostarsi, OK per aprire, «indietro» per tornare. Ogni pulsante, impostazione e menu si raggiunge con le frecce",
+      "Nel video: su e giù (o CH+ e CH−) cambiano canale, i numeri sintonizzano, OK mostra i comandi e le frecce li percorrono; «indietro» prima toglie i comandi e poi esce",
+      "Il riquadro scelto ha un bordo ben visibile e la selezione resta nella stessa colonna scorrendo su e giù",
+      "Tasto «indietro» dei televisori Samsung, LG e Android TV riconosciuto ovunque",
+      "Si esce dalle caselle di testo con le frecce e i testi lunghi (Novità, Come si usa) si scorrono col telecomando",
+      "In «Come si usa» c'è la guida al telecomando; se la TV non viene riconosciuta basta Impostazioni → Modalità TV → Sempre",
+      "In finestrella l'elenco dei canali sotto si tocca e si naviga senza ostacoli",
+      "Su telefono e computer non cambia nulla: tocco, mouse e scorrimento restano come prima"
+    ]
+  },
+  {
     "v": "1.9.0",
     "d": "2026-11-26",
     "n": [
