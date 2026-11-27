@@ -1,14 +1,18 @@
 // Tivù Player: tiene in memoria l'app (si apre anche senza rete) e le librerie del lettore. I canali non passano di qui.
-const C = "tivu-v6";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./lista.m3u", "./novita.json"];
+const C = "tivu-v7";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./lista.m3u", "./novita.json", "./lib/hls-1.7.3.min.js"];
 // l'app chiede di subentrare quando l'utente tocca «Aggiorna»
 self.addEventListener("message", e => { if (e.data && e.data.t === "skipWaiting") self.skipWaiting(); });
-self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
   const r = e.request; if (r.method !== "GET") return;
   const u = new URL(r.url);
   if (u.origin === location.origin && u.pathname.includes("/dec/")) return;
+  if (u.origin === location.origin && /\/lib\//.test(u.pathname)) {   // librerie del lettore: nome con la versione, quindi prima la copia salvata
+    e.respondWith(caches.match(r).then(x => x || fetch(r).then(y => { if (y.ok) { const cp = y.clone(); caches.open(C).then(c => c.put(r, cp)); } return y; })));
+    return;
+  }
   if (u.origin === location.origin && /novita\.json/.test(u.pathname)) return;   // sempre dalla rete: dice se c'e' una versione nuova   // il decodificatore (32 MB) resta nella cache normale del browser
   if (u.origin === location.origin) {   // l'app: prima la rete (aggiornamenti subito), senza rete la copia salvata
     // prima la rete (aggiornamenti subito); se la rete e' lenta (oltre 3 s) o assente, la copia salvata. La risposta dalla

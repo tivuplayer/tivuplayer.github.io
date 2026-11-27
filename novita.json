@@ -1,5 +1,17 @@
 [
   {
+    "v": "2.1.0",
+    "d": "2026-11-27",
+    "n": [
+      "I canali si aprono molto più in fretta, soprattutto su smart TV e decoder: su una TV lenta il primo canale si vede in circa 2 secondi invece di 3-5",
+      "La libreria del lettore ora è dentro l'app (prima veniva scaricata da internet ogni volta che la copia salvata scadeva) e si prepara già all'avvio",
+      "La guida TV non ruba più banda e processore mentre un canale sta partendo: si carica appena il video è avviato e si mette in pausa da sola se cambi canale",
+      "Mentre la libreria si carica, l'app si porta avanti con la lista del canale: i due tempi non si sommano più",
+      "Col telecomando, il canale selezionato viene preparato mentre lo guardi nell'elenco: premendo OK parte quasi subito",
+      "L'app funziona anche senza internet per la parte già vista, librerie del lettore comprese"
+    ]
+  },
+  {
     "v": "2.0.0",
     "d": "2026-11-27",
     "n": [

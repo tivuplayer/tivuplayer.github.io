@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tivù Player</title>
+<link rel="preload" as="script" href="lib/hls-1.7.3.min.js">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -736,15 +737,23 @@ function toast(msg, ms) {
   t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms || 2600);
 }
 const scripts = {};
-function loadScript(src) {
-  if (scripts[src]) return scripts[src];
-  return scripts[src] = new Promise((res, rej) => {
-    const s = document.createElement("script"); s.src = src; s.async = true; s.crossOrigin = "anonymous";
-    s.onload = () => res(); s.onerror = () => { delete scripts[src]; rej(new Error("script non caricato: " + src)); };
+function inject(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.async = true; if (/^https?:/.test(src)) s.crossOrigin = "anonymous";
+    s.onload = () => res(); s.onerror = () => rej(new Error("script non caricato: " + src));
     document.head.append(s);
   });
 }
-const LIB = { hls: "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js", ts: "https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.js", dash: "https://cdn.jsdelivr.net/npm/dashjs@5.2.1/dist/modern/umd/dash.mediaplayer.min.js" };
+function loadScript(src) {   // prima la copia nell'app (parte molto prima su TV e decoder), poi il sito esterno
+  if (scripts[src]) return scripts[src];
+  return scripts[src] = inject(src).catch(e => { const alt = LIB_CDN[src]; if (!alt) { delete scripts[src]; throw e; } return inject(alt).catch(e2 => { delete scripts[src]; throw e2; }); });
+}
+const LIB = { hls: "lib/hls-1.7.3.min.js", ts: "lib/mpegts-1.8.2.js", dash: "lib/dash-5.2.1.min.js" };
+const LIB_CDN = {
+  "lib/hls-1.7.3.min.js": "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js",
+  "lib/mpegts-1.8.2.js": "https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.js",
+  "lib/dash-5.2.1.min.js": "https://cdn.jsdelivr.net/npm/dashjs@5.2.1/dist/modern/umd/dash.mediaplayer.min.js"
+};
 const FRAMED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 const UA = navigator.userAgent;
 const IS_ANDROID = /Android/i.test(UA), IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -1196,6 +1205,7 @@ async function fetchEpg(urls, chans, onProgress) {
   for (const url of urls) {
     const resp = await fetchEpgFile(url); let buf = "", total = 0;
     for await (const chunk of textChunks(resp)) {
+      if (epgBusy()) await epgWait();   // un canale sta partendo: la guida si ferma e riprende dopo
       buf += chunk; total += chunk.length; let pos = 0;
       for (;;) {
         const a = buf.indexOf("<programme", pos), b = buf.indexOf("<channel", pos);
@@ -1232,6 +1242,34 @@ function nowNext(ch) {
   const n = L[i]; return { now: n, next: L[i + 1] || null, pct: Math.min(1, (t - n.s) / (n.e - n.s)) };
 }
 function epgUrls(pl) { return String(pl.epgUrl || pl.epgAuto || "").split(",").map(s => s.trim()).filter(s => /^https?:\/\//i.test(s)); }
+// La guida TV pesa (si scarica e si legge tutta): su TV e telefoni lenti rubava secondi proprio mentre
+// si apriva il primo canale. Ora si carica appena il video e' partito e il processore e' libero.
+let epgT = 0;
+// vero mentre un canale sta partendo o ha appena iniziato: in quel momento la guida non deve consumare
+// ne' banda ne' processore, altrimenti il video tarda a vedersi
+function epgBusy() {
+  if ($("player").hidden) return false;
+  if (!P.started) return true;                      // il canale sta partendo: tutta la banda al video
+  if (video.paused) return false;                   // fermo di proposito: la guida puo' andare
+  return video.currentTime < 8 || bufAhead() < 4;   // appena partito: prima si riempie la scorta
+}
+function epgWait(maxMs) {
+  return new Promise(res => {
+    const t0 = Date.now();
+    const iv = setInterval(() => { if (!epgBusy() || Date.now() - t0 > (maxMs || 45000)) { clearInterval(iv); res(); } }, 400);
+  });
+}
+function loadEpgSoon(pl) {
+  clearTimeout(epgT);
+  const go = () => {
+    if (S.pl !== pl) return;
+    // mentre un canale parte (o ha appena iniziato) la guida aspetta: scaricarla e leggerla toglierebbe
+    // banda e processore proprio al video. Si riprende quando la scorta video e' piena.
+    if (epgBusy()) { epgT = setTimeout(go, 2000); return; }
+    loadEpg(pl);
+  };
+  epgT = setTimeout(() => { if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 4000 }); else go(); }, 900);
+}
 async function loadEpg(pl, force) {
   const urls = epgUrls(pl); if (!urls.length) { S.epg = {}; return; }
   const cache = await DB.get("epg", pl.id);
@@ -1245,7 +1283,8 @@ async function loadEpg(pl, force) {
     const n = Object.keys(data).length; setStatus(n ? "" : "Guida TV caricata, ma nessun canale corrisponde (controlla i tvg-id).", n ? 0 : 7000);
     if (n && force) toast("Guida TV aggiornata: " + n + (n === 1 ? " canale" : " canali"));
   } catch (e) {
-    setStatus("Guida TV non caricata. " + (e.message && /gz/.test(e.message) ? e.message : friendlyFetchError(urls[0], e)), 9000);
+    if (epgBusy() || (e && (e.name === "AbortError" || /aborted|network|Failed to fetch/i.test(e.message || "")))) loadEpgSoon(pl);   // si stava guardando: si riprova dopo, senza avvisi
+    else setStatus("Guida TV non caricata. " + (e.message && /gz/.test(e.message) ? e.message : friendlyFetchError(urls[0], e)), 9000);
   } finally { busy(-1); }
 }
 setInterval(() => {   // l'ora avanza: si aggiornano le righe «in onda»
@@ -1305,7 +1344,7 @@ async function selectPlaylist(pl, opt) {
   renderTabs(); render(true);
   if (opt.boot && CFG.resume) resumeLast();
   if (pl.url && CFG.autoRefresh && !opt.fresh && Date.now() - (pl.updated || 0) > 24 * 3600e3) refreshPlaylist(pl, true);
-  else loadEpg(pl);
+  else loadEpgSoon(pl);
 }
 function applyParsed(pl, parsed) {
   S.chans = parsed.channels; S._bk = null;
@@ -1324,7 +1363,7 @@ async function refreshPlaylist(pl, quiet) {
     setStatus(""); if (!quiet) toast("Playlist aggiornata: " + parsed.channels.length + " canali");
   } catch (e) {
     setStatus(e.empty ? "L'indirizzo non contiene canali M3U." : "Aggiornamento non riuscito. " + friendlyFetchError(pl.url, e), 10000);
-  } finally { busy(-1); if (S.pl && S.pl.id === pl.id) loadEpg(pl); }
+  } finally { busy(-1); if (S.pl && S.pl.id === pl.id) loadEpgSoon(pl); }
 }
 function playlistSheet(pl) {
   const head = h("div", { class: "sh-head" }, icon("playlist"), h("div", { class: "tx" }, h("b", { text: pl.name }), h("small", { text: pl.url || (pl.src === "demo" ? "Playlist di esempio inclusa" : "Caricata dal telefono") })));
@@ -1950,6 +1989,11 @@ function attempt(st, token, proxied) {
     video.addEventListener("loadeddata", onLoaded); video.addEventListener("playing", onPlaying); video.addEventListener("error", onErr);
     try {
       if (st.e === "hls" || st.e === "hlsx") {
+        // la libreria non e' ancora pronta: intanto si prende la lista, cosi' i due tempi non si sommano
+        if (!window.Hls && !proxied && !FRAMED && !isMixed(st.url)) plFetch(st.url).then(g => {
+          if (!g || !/#EXT-X-STREAM-INF/i.test(g.t)) return;
+          const v = firstVariant(g.t, g.u || st.url); if (v) plFetch(v);
+        });
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
         const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: CFG.quality !== "max", backBufferLength: 15, startLevel: 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
@@ -2305,7 +2349,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.0.0";
+const APP_VER = "2.1.0";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3102,6 +3146,17 @@ function arrowNav(e) {
   }
   return false;
 }
+// Col telecomando la selezione dice gia' cosa si sta per aprire: si prepara la lista del canale scelto,
+// cosi' premendo OK il video parte quasi subito. Solo in TV, solo a lettore chiuso e con linea non a consumo.
+let dwellT = 0;
+document.addEventListener("focusin", e => {
+  clearTimeout(dwellT);
+  if (!tvOn() || !$("player").hidden || !fastLine() || FRAMED) return;
+  const b = e.target.closest && e.target.closest("#list .ch, .pc-row");
+  if (!b) return;
+  const ch = byKey().get(b.dataset.k); if (!ch) return;
+  dwellT = setTimeout(() => { if (document.activeElement === b) prefetchCh(ch); }, 350);
+});
 function openChannelMenuFromFocus() {
   const el = document.activeElement, b = el && el.closest && el.closest("#list .ch, .pc-row");
   if (!b) return false;
@@ -3301,7 +3356,7 @@ function navTo(el) {
   await refreshPlaylistsList();
   await dropDemo();
   if (!store.get("seededDefault", false)) { if (S.pls.some(p => p.id === DEFAULT_PL.id) || await installDefault(false)) store.set("seededDefault", true); }
-  setTimeout(() => { if (!FRAMED) loadScript(LIB.hls).catch(() => {}); }, 2500);
+  if (!FRAMED) loadScript(LIB.hls).catch(() => {});   // la libreria video parte subito: su TV e' il pezzo piu' lento
   loadLogoMap();
   // appena aggiornata: si mostra cosa e' cambiato (non al primo avvio in assoluto)
   const seen = store.get("verSeen", "");
