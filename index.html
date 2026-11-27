@@ -1062,6 +1062,7 @@ function dialog({ title, body, actions, wide, onClose }) {
   }
   box.append(h("h2", { class: "dlg-t", text: title }), h("div", { class: "dlg-b" }, body), acts);
   wrap.addEventListener("click", e => { if (e.target === wrap) close(); });
+  if (!$("player").hidden) wrap.style.zIndex = 57;   // aperta dal lettore: deve stargli sopra
   overlayRoot().append(wrap);
   const L = pushLayer(() => { wrap.remove(); onClose && onClose(); });
   function close() { closeLayer(L); }
@@ -1827,6 +1828,7 @@ function warmNeighbours(idx) {
   }
 }
 function decRemember(ch) { const s = decChannels(); if (!s.has(ch.key)) { s.add(ch.key); store.set("decch", [...s].slice(-200)); } }
+function decForget(ch) { const s = decChannels(); if (s.delete(ch.key)) store.set("decch", [...s]); }   // ora parte senza ffmpeg: non resta segnato
 function note(t) { const n = $("pNote"); if (!n) return; n.textContent = t || ""; n.hidden = !t; }
 
 // ======================= lettore =======================
@@ -1930,7 +1932,14 @@ async function playIdx(idx) {
   // decodificatore avanzato: subito se chiesto o se questo canale ne ha gia' avuto bisogno, altrimenti dopo un «formato non supportato»
   const hlsLike = steps.some(x => x.e === "hls") ? steps.find(x => x.e === "hls").url : null;
   const decOk = !FRAMED && hlsLike && window.isSecureContext !== false;
-  if (decOk && (P.forceDec === ch.key || decChannels().has(ch.key))) steps.unshift({ e: "hlsx", url: hlsLike });
+  if (decOk && (P.forceDec === ch.key || decChannels().has(ch.key))) {
+    const ni = steps.findIndex(x => x.e === "native" && !x.alt);
+    // se il televisore (o il telefono) sa leggere l'HLS da solo, il suo lettore viene prima: fa l'audio AC-3 in
+    // hardware, parte in un attimo e non sfasa audio e video. Il decodificatore avanzato (ffmpeg, 32 MB) resta
+    // l'ultima spiaggia, a meno che non sia stato chiesto espressamente.
+    if (P.forceDec === ch.key || ni < 0) steps.unshift({ e: "hlsx", url: hlsLike });
+    else { if (ni > 0) steps.unshift(steps.splice(ni, 1)[0]); steps.push({ e: "hlsx", url: hlsLike }); }
+  }
   P.decErr = ""; P.decShown = false; P.decInfo = null;
   // fonti alternative DELLA STESSA LISTA: altri canali con lo stesso tvg-id (es. Rai 1 -> «Rai 1 Europa», «Rai 1 Estero»).
   // Si provano solo se l'indirizzo principale non parte; quella che ha funzionato si ricorda e si prova per prima.
@@ -1941,13 +1950,30 @@ async function playIdx(idx) {
   // cambio canale piu' rapido: il modo che l'ultima volta ha funzionato (lettore + indirizzo) si prova per primo
   const win = (store.get("win") || {})[ch.key];
   if (win) { const wi = steps.findIndex(x => x.e === win.e && x.url === win.u); if (wi > 0) steps.unshift(steps.splice(wi, 1)[0]); }
+  // Prima volta su un canale con fonti alternative (e nessun ricordo): invece di aspettare che il primo
+  // indirizzo fallisca, si chiedono insieme le liste di tutti e si parte da quella che risponde.
+  if (altSteps.length && !win && !altMem && !FRAMED && fastLine()) {
+    const viste = new Set(), urls = [];
+    for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url)) { viste.add(st.url); urls.push(st.url); }
+    if (urls.length > 1) {
+      const got = await Promise.all(urls.slice(0, 3).map(u => plFetch(u, 3500).then(r => !!r, () => false)));
+      if (token !== P.token) return;
+      const vivo = urls.slice(0, 3).filter((u, i) => got[i]);
+      if (vivo.length && !got[0]) {   // il principale non risponde: si parte da quello che ha risposto
+        const buoni = []; for (let j = steps.length - 1; j >= 0; j--) if (vivo.includes(steps[j].url)) buoni.unshift(...steps.splice(j, 1));
+        steps.unshift(...buoni);
+      }
+    }
+  }
   warmNeighbours(idx); prefetchNeighbours();
+  P.openT = Date.now(); P.openMs = 0;
   for (let i = 0; i < steps.length; i++) {
     const st = steps[i];
     if (token !== P.token) return;
+    const tStep = Date.now();
     try {
       P.pmt = null; P.pmtP = null; P.hlsTracks = null;
-      await attempt(st, token, pl.proxied);
+      await attempt(st, token, pl.proxied, i + 1 < steps.length ? (slowNet() ? 13000 : 9000) : 0);
       if (token === P.token && st.e === "hls" && decOk) {   // parte, ma senza audio o senza video? allora formato non supportato
         if (!P.pmt && P.pmtP) await Promise.race([P.pmtP, new Promise(r => setTimeout(r, 2500))]);
         if (token !== P.token) return;
@@ -1956,7 +1982,8 @@ async function playIdx(idx) {
       }
       if (token === P.token) {
         P.started = true; spin(false); unfreeze(); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
-        altRemember(ch, st.alt); winRemember(ch, st);
+        P.openMs = Date.now() - P.openT; P.trace.push({ e: st.e, url: st.url, alt: st.alt, ok: true, ms: Date.now() - tStep });
+        altRemember(ch, st.alt); winRemember(ch, st); if (st.e !== "hlsx") decForget(ch);
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note(tvOn() ? "Su e giù cambiano canale, OK mostra i comandi, i numeri sintonizzano" : "Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
@@ -1966,16 +1993,22 @@ async function playIdx(idx) {
     catch (e) {
       if (token !== P.token) return;
       if (st.e === "hlsx" && P.decInfo) e.det = (e.det || "") + " · flussi: " + P.decInfo.probe;
-      P.trace.push(Object.assign({ e: st.e, url: st.url, alt: st.alt }, e)); keep(e); stopEngines(); note("");
+      P.trace.push(Object.assign({ e: st.e, url: st.url, alt: st.alt, ms: Date.now() - tStep }, e)); keep(e); stopEngines(); note("");
+      // indirizzo che non risponde: inutile riprovarlo con un altro lettore, si passa direttamente alla fonte dopo
+      if (/network|timeout|http|mixed/.test(e.kind || "")) for (let j = steps.length - 1; j > i; j--) if (steps[j].url === st.url) steps.splice(j, 1);
       // decodificatore avanzato dopo un «formato non supportato», ma non se l'indirizzo non si legge proprio (non servirebbe)
       if (st.alt) { e.det = (e.det ? e.det + " · " : "") + "fonte alternativa «" + st.alt.name + "»"; P.trace[P.trace.length - 1].det = e.det; }
       if (!FRAMED && window.isSecureContext !== false && e.kind === "format" && (st.e === "hls" || st.e === "native") && (st.alt || hlsLike) && !steps.some(x => x.e === "hlsx" && x.alt === st.alt)
-        && !P.trace.some(x => x.e === "hls" && x.alt === st.alt && /network|http|mixed/.test(x.kind))) steps.splice(i + 1, 0, { e: "hlsx", url: st.alt ? st.url : hlsLike, alt: st.alt });
+        && !P.trace.some(x => x.e === "hls" && x.alt === st.alt && /network|http|mixed/.test(x.kind))) {
+        const nuovo = { e: "hlsx", url: st.alt ? st.url : hlsLike, alt: st.alt };
+        const ni = steps.findIndex((x, j) => j > i && x.e === "native" && x.alt === st.alt);
+        if (ni > i) steps.splice(ni + 1, 0, nuovo); else steps.splice(i + 1, 0, nuovo);   // prima il lettore del dispositivo, ffmpeg dopo
+      }
     }
   }
   spin(false); unfreeze(); showError(lastErr || { kind: "unknown" }, ch);
 }
-function attempt(st, token, proxied) {
+function attempt(st, token, proxied, limMs) {
   return new Promise(async (res, rej) => {
     let done = false;
     const ok = () => { if (done) return; done = true; cleanup(); res(); };
@@ -1983,7 +2016,7 @@ function attempt(st, token, proxied) {
     const onLoaded = () => { const p = video.play(); if (p && p.catch) p.catch(err => { if (err && err.name === "NotAllowedError") { setIcon($("pPlay"), "play"); showUi(true); ok(); } }); };
     const onPlaying = () => ok();
     const onErr = () => ko(classifyMedia(video.error, st.url));
-    const lim = st.e === "hlsx" ? 120000 : 25000;
+    const lim = st.e === "hlsx" ? 120000 : (limMs || 25000);   // se dopo c'e' un'altra strada si aspetta meno e si passa oltre
     const tm = setTimeout(() => ko({ kind: "timeout", det: "nessun video in " + lim / 1000 + " s" + (st.e === "hlsx" && P.decErr ? " · " + P.decErr : "") }), lim);
     function cleanup() { clearTimeout(tm); video.removeEventListener("loadeddata", onLoaded); video.removeEventListener("playing", onPlaying); video.removeEventListener("error", onErr); }
     video.addEventListener("loadeddata", onLoaded); video.addEventListener("playing", onPlaying); video.addEventListener("error", onErr);
@@ -2349,7 +2382,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.1.0";
+const APP_VER = "2.2.0";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2506,9 +2539,9 @@ function plCachePut(url, txt, finalUrl) {
   PL_CACHE.set(url, { t: txt, at: Date.now(), u: finalUrl || url });
   if (PL_CACHE.size > 40) PL_CACHE.delete(PL_CACHE.keys().next().value);
 }
-async function plFetch(url) {
+async function plFetch(url, ms) {
   try {
-    const c = new AbortController(), to = setTimeout(() => c.abort(), 6000);
+    const c = new AbortController(), to = setTimeout(() => c.abort(), ms || 6000);
     const r = await fetch(url, { cache: "no-store", signal: c.signal }); clearTimeout(to);
     if (!r.ok) return null;
     const t = await r.text(); if (!/#EXTM3U/i.test(t)) return null;
@@ -2797,8 +2830,48 @@ function playerOptions() {
   if (!any) add(h("p", { class: "opt-none", text: "Questo canale offre una sola versione: nessuna scelta di audio, sottotitoli o qualità." }));
   nodes.push({ icon: "aspect", label: "Formato immagine: " + FIT_LABEL[fit], run: () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); } });
   if (!FRAMED && P.ch && kindOf(P.ch.url) !== "file" && kindOf(P.ch.url) !== "dash") nodes.push({ icon: "tv", label: "Guarda con il decodificatore avanzato", run: () => openChannel(P.ch, true, true) });
+  if (P.started) nodes.push({ icon: "refresh", label: "Risincronizza audio e video", run: () => resync() });
+  nodes.push({ icon: "info", label: "Dettagli tecnici", run: () => techDialog() });
   nodes.push({ icon: "ext", label: "Apri in un'altra app (VLC…)", run: () => { video.pause(); openExternal(P.ch); } });
   const L = sheet(h("div", { class: "sh-head" }, icon("settings"), h("div", { class: "tx" }, h("b", { text: "Audio e qualità" }), h("small", { text: P.ch ? P.ch.name : "" }))), nodes);
+}
+
+// Audio e video fuori sincrono: capita con certi canali (flussi con marcature dei tempi strane).
+// Si riparte dallo stesso canale, dallo stesso lettore: il riallineamento avviene all'aggancio.
+function resync() {
+  if (!P.ch) return;
+  note("Risincronizzo audio e video…");
+  const t = P.token;
+  playIdx(P.idx);
+  setTimeout(() => { if (P.token !== t) return; }, 10);
+}
+function engineName(e) {
+  return { hls: "hls.js", hlsx: "decodificatore avanzato (ffmpeg)", native: "lettore del dispositivo", ts: "mpegts.js", flv: "mpegts.js (FLV)", dash: "dash.js" }[e] || e || "-";
+}
+function techDetails() {
+  const L = [], h2 = P.hls;
+  L.push("Canale: " + (P.ch ? P.ch.name + (P.ch.num ? " (n. " + P.ch.num + ")" : "") : "-"));
+  L.push("Lettore in uso: " + (P.step ? engineName(P.step.e) : "-") + (P.step && P.step.alt ? " · fonte alternativa della lista: " + P.step.alt.name : " · indirizzo della lista"));
+  if (P.openMs) L.push("Partito in: " + (P.openMs < 1000 ? P.openMs + " ms" : (P.openMs / 1000).toFixed(1) + " s"));
+  if (h2 && h2.levels && h2.levels.length) {
+    const lv = h2.levels[h2.currentLevel] || h2.levels[h2.loadLevel] || {};
+    L.push("Qualità: " + (lv.height ? lv.height + "p" : "?") + (h2.autoLevelEnabled ? " (automatica)" : " (scelta a mano)") + " su " + h2.levels.length);
+    if (h2.bandwidthEstimate) L.push("Velocità misurata: " + (h2.bandwidthEstimate / 1e6).toFixed(1) + " Mb/s");
+  }
+  L.push("Scorta video pronta: " + bufAhead().toFixed(1) + " s");
+  if (P.pmt && (P.pmt.v.length || P.pmt.a.length)) L.push("Flussi del canale: " + [...P.pmt.v, ...P.pmt.a].join(", "));
+  if (P.trace && P.trace.length) {
+    L.push(""); L.push("Tentativi, in ordine:");
+    for (const t of P.trace) L.push("  " + (t.ok ? "riuscito  " : "fallito   ") + engineName(t.e) + (t.alt ? " · " + t.alt.name : "")
+      + (t.ms != null ? " · " + t.ms + " ms" : "") + (t.ok ? "" : " · " + (t.kind || "") + (t.det ? " · " + t.det : "")));
+  }
+  L.push(""); L.push("Dispositivo: " + (tvOn() ? "modalità TV" : "normale") + " · " + (navigator.userAgent || "").slice(0, 120));
+  return L.join("\n");
+}
+function techDialog() {
+  const pre = h("pre", { class: "p-pre", text: techDetails() });
+  dialog({ title: "Dettagli tecnici", wide: true, actions: [{ label: "Chiudi", primary: true }], body: [pre,
+    h("button", { class: "btn", type: "button", style: "margin-top:10px", onclick: () => copyText(pre.textContent) }, "Copia dettagli")] });
 }
 
 // ======================= lista dei canali dentro il lettore =======================

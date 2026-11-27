@@ -1,5 +1,17 @@
 [
   {
+    "v": "2.2.0",
+    "d": "2026-11-27",
+    "n": [
+      "Canali come Rai 1, Rai 2 e La 7, che partono da una fonte alternativa della lista, si aprono molto prima: l'app chiede insieme l'indirizzo principale e quelli alternativi e parte dal primo che risponde (la prima apertura passa da 18 a 4 secondi quando il primo indirizzo non risponde)",
+      "Se un indirizzo non risponde non viene più riprovato con un altro lettore: si passa subito alla fonte successiva",
+      "Non si aspettano più 25 secondi su un tentativo quando ci sono altre strade da provare",
+      "Audio e video fuori sincrono: nel menu del lettore c'è «Risincronizza audio e video»",
+      "Sui televisori viene provato prima il lettore del televisore (fa l'audio AC-3 in hardware, parte subito e non sfasa) e solo in ultimo il decodificatore avanzato, che è pesante e può sfasare l'audio",
+      "Nuova voce «Dettagli tecnici» nel menu del lettore: dice quale lettore e quale fonte sono in uso, quanto ci ha messo a partire e com'è andato ogni tentativo"
+    ]
+  },
+  {
     "v": "2.1.0",
     "d": "2026-11-27",
     "n": [
