@@ -25,6 +25,8 @@ COSA FA
 
 LIMITI DEL BROWSER (non dell'app)
   - Canali http:// su una pagina https://: il browser li blocca. Si aprono con "Apri in un'altra app" (VLC) oppure con il proxy.
-  - Alcuni server non permettono la visione da un sito web (CORS) o sono riservati all'Italia: stesso rimedio.
+  - Alcuni server non lasciano leggere la lista a un sito web (CORS). Su smart TV, iPhone e Android li apre comunque
+    il lettore del dispositivo; su PC l'app prova una fonte alternativa della stessa lista, altrimenti servono VLC o il proxy.
+  - Canali riservati all'Italia: si aprono solo da una connessione italiana.
   - I canali con DRM (cifrati) funzionano solo nelle app ufficiali.
   - User-Agent e Referer personalizzati (#EXTVLCOPT) non si possono impostare da un browser.

@@ -1,5 +1,18 @@
 [
   {
+    "v": "2.3.0",
+    "d": "2026-11-27",
+    "n": [
+      "I canali si aprono come nelle app per telefono e TV: se un server risponde ma non lascia leggere la lista al browser (è il caso di Rai 1, Rai 2 e La 7), ora l'indirizzo viene dato al lettore del televisore o del telefono, che lo riproduce lo stesso. Prima apertura da circa 4 secondi a un quarto di secondo",
+      "Niente più giri a vuoto su quei canali: si usa l'indirizzo scritto nella lista, senza passare dalle fonti alternative e senza il decodificatore avanzato",
+      "Audio e video fuori sincrono su Rai 2: il lettore del dispositivo fa l'audio in hardware, quindi non sfasa",
+      "Prima di aprire, l'app chiede a tutti gli indirizzi chi risponde e parte dal primo: se l'indirizzo principale tace, dopo un attimo parte comunque dalla fonte che ha risposto, senza aspettare il tempo massimo",
+      "Gli indirizzi che non rispondono vengono tolti dai tentativi: niente attese inutili",
+      "Col telecomando la verifica viene fatta mentre si sta fermi sul riquadro del canale, così premendo OK parte subito",
+      "Nei «Dettagli tecnici» c'è ora anche la risposta di ogni server e se il lettore del dispositivo sa leggere l'HLS"
+    ]
+  },
+  {
     "v": "2.2.0",
     "d": "2026-11-27",
     "n": [
