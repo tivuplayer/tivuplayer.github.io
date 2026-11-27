@@ -1798,6 +1798,23 @@ function altSources(ch) {
   return out;
 }
 function idStem(id) { return String(id).toLowerCase().replace(/\.(hd|fhd|uhd|sd|4k)(?=\.|$)/g, "").replace(/\.[a-z]{2}$/, "").replace(/[^a-z0-9]/g, ""); }
+// Fonte scelta a mano dall'utente nel menu del lettore: comanda lei, sempre, finche' non si rimette
+// su «Automatica». Serve quando una fonte funziona ma non e' quella giusta (per esempio un canale
+// «Estero» che al posto del programma manda un cartello sui diritti di trasmissione).
+function srcPick(ch) { const m = store.get("srcpick") || {}; return Object.prototype.hasOwnProperty.call(m, ch.key) ? m[ch.key] : null; }
+function srcPickSet(ch, url) {
+  const m = store.get("srcpick") || {};
+  if (url === null) delete m[ch.key]; else m[ch.key] = url;
+  const ks = Object.keys(m); if (ks.length > 200) delete m[ks[0]];
+  store.set("srcpick", m);
+}
+// tornando su «Automatica» si dimentica anche cosa aveva funzionato l'ultima volta, altrimenti
+// l'app continuerebbe a ripartire dalla stessa fonte di prima invece di riprovare da capo
+function srcForget(ch) {
+  const w = store.get("win") || {}; if (w[ch.key]) { delete w[ch.key]; store.set("win", w); }
+  const a = store.get("altsrc") || {}; if (a[ch.key] != null) { delete a[ch.key]; store.set("altsrc", a); }
+  PROBE_MEM.clear(); probeDeep.clear();
+}
 function altRemember(ch, alt) {
   const m = store.get("altsrc") || {}; const cur = m[ch.key];
   if (alt ? cur === alt.url : !cur) return;
@@ -1957,12 +1974,18 @@ async function playIdx(idx) {
   // cambio canale piu' rapido: il modo che l'ultima volta ha funzionato (lettore + indirizzo) si prova per primo
   const win = (store.get("win") || {})[ch.key];
   if (win) { const wi = steps.findIndex(x => x.e === win.e && x.url === win.u); if (wi > 0) steps.unshift(steps.splice(wi, 1)[0]); }
+  // fonte scelta a mano nel menu del lettore: va in testa e l'app non la scavalca
+  const scelta = srcPick(ch);
+  if (scelta != null) {
+    const voluti = []; for (let j = steps.length - 1; j >= 0; j--) if ((steps[j].alt ? steps[j].alt.url : ch.url) === scelta) voluti.unshift(...steps.splice(j, 1));
+    steps.unshift(...voluti);
+  }
   // Prima volta su questo canale (nessun ricordo di cosa ha funzionato): si chiede a tutti gli indirizzi insieme
   // chi risponde, e si parte da quello, senza aspettare che il primo fallisca. Se un server risponde ma non lascia
   // leggere la lista a JavaScript (muro CORS), si da' l'indirizzo al LETTORE DEL DISPOSITIVO, che lo riproduce
   // lo stesso: e' il motivo per cui le app per telefono e TV aprono subito canali che al browser costano secondi.
   P.probe = null;
-  if (!win && !FRAMED && !pl.proxied) {
+  if (!win && scelta == null && !FRAMED && !pl.proxied) {
     const viste = new Set(), cand = [];
     for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
     if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
@@ -2034,7 +2057,7 @@ async function playIdx(idx) {
         P.openMs = Date.now() - P.openT; P.trace.push({ e: st.e, url: st.url, alt: st.alt, ok: true, ms: Date.now() - tStep });
         altRemember(ch, st.alt); winRemember(ch, st); if (st.e !== "hlsx") decForget(ch);
         if (st.e === "native" && store.get("natNo", 0)) store.set("natNo", 0);   // ce la fa: il brutto ricordo si cancella
-        if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
+        if (st.alt) { note("Sto usando «" + st.alt.name + "» · puoi cambiare fonte dal menu del lettore"); setTimeout(() => { if (P.token === token) note(""); }, 7000); }
         else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note(tvOn() ? "Su e giù cambiano canale, OK mostra i comandi, i numeri sintonizzano" : "Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
       }
@@ -2446,7 +2469,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.3.2";
+const APP_VER = "2.3.3";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2920,6 +2943,7 @@ function qName(l) {
   return (h ? h + "p" : mb ? "Qualità" : "Qualità " ) + (mb ? "  ·  " + mb + " Mb/s" : "");
 }
 // gruppo di scelte a pallino, come nelle impostazioni di un lettore vero
+function breveUrl(u) { try { const x = new URL(u); return x.hostname.replace(/^www\./, ""); } catch (e) { return String(u).slice(0, 40); } }
 function optGroup(title, opts, cur, pick, close) {
   const box = h("div", { class: "opt-g" }, h("div", { class: "opt-h", text: title }));
   opts.forEach(o => {
@@ -2974,6 +2998,22 @@ function playerOptions() {
     }
   }
   if (!any) add(h("p", { class: "opt-none", text: "Questo canale offre una sola versione: nessuna scelta di audio, sottotitoli o qualità." }));
+  // --- fonte del canale: quando la lista offre piu' strade per lo stesso canale si puo' scegliere
+  if (P.ch && !FRAMED) {
+    const alts = altSources(P.ch);
+    if (alts.length) {
+      const o = [{ v: "", label: "Automatica", sub: "l'app prova le fonti e usa la prima che funziona" },
+        { v: P.ch.url, label: "Indirizzo della lista", sub: breveUrl(P.ch.url) }]
+        .concat(alts.map(a => ({ v: a.url, label: a.name, sub: breveUrl(a.url) })));
+      const cur = srcPick(P.ch);
+      add(optGroup("Fonte del canale", o, cur == null ? "" : cur, v => {
+        srcPickSet(P.ch, v === "" ? null : v);
+        if (v === "") srcForget(P.ch);
+        note(v === "" ? "Fonte automatica" : "Cambio fonte…");
+        playIdx(P.idx);
+      }, () => closeLayer(L)));
+    }
+  }
   nodes.push({ icon: "aspect", label: "Formato immagine: " + FIT_LABEL[fit], run: () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); } });
   if (!FRAMED && P.ch && kindOf(P.ch.url) !== "file" && kindOf(P.ch.url) !== "dash") nodes.push({ icon: "tv", label: "Guarda con il decodificatore avanzato", run: () => openChannel(P.ch, true, true) });
   if (P.started) nodes.push({ icon: "refresh", label: "Risincronizza audio e video", run: () => resync() });

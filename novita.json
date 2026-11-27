@@ -1,5 +1,14 @@
 [
   {
+    "v": "2.3.3",
+    "d": "2026-11-27",
+    "n": [
+      "Nuovo «Fonte del canale» nel menu del lettore: quando la lista offre più indirizzi per lo stesso canale puoi scegliere tu quale usare, e la scelta viene ricordata. Serve quando una fonte funziona ma non manda il programma giusto, per esempio un canale «Estero» che al suo posto trasmette un cartello sui diritti",
+      "Tornando su «Automatica» l'app dimentica anche la fonte che aveva usato l'ultima volta e riprova da capo",
+      "Quando si sta guardando una fonte alternativa, l'avviso in basso lo dice chiaramente e ricorda che si può cambiare dal menu del lettore"
+    ]
+  },
+  {
     "v": "2.3.2",
     "d": "2026-11-27",
     "n": [
