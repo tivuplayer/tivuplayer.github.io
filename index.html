@@ -1967,18 +1967,27 @@ async function playIdx(idx) {
     for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
     if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
     const natHls = hlsNative(cand[0]);
-    const noto = cand.length && cand.every(u => probeGet(u) || plCacheGet(u));
-    // con un indirizzo solo non c'e' niente da confrontare: si parte subito e, se il browser non riesce a
-    // leggere la lista, piu' sotto si chiede al lettore del dispositivo. Cosi' i canali normali non perdono
-    // nemmeno un giro di rete.
-    if (cand.length > 1 || (cand.length === 1 && noto)) {
-      const esiti = noto ? new Map(cand.map(u => [u, plCacheGet(u) ? "ok" : probeGet(u)])) : await probeRace(cand, slowNet() ? 6000 : 4000);
+    const noto = cand.length && cand.every(u => probeGet(u));
+    // Si verifica quando c'e' piu' di una strada possibile (anche di tipo diverso, come il DASH di La 7)
+    // oppure quando il lettore del dispositivo puo' servire. Con una strada sola e nient'altro non c'e'
+    // niente da scegliere: si parte subito, senza perdere un giro di rete.
+    if (cand.length > 1 || (cand.length === 1 && (altSteps.length || natHls))) {
+      const esiti = noto ? new Map(cand.map(u => [u, probeGet(u)])) : await probeRace(cand, slowNet() ? 6000 : 4000, natHls);
       if (token !== P.token) return;
       P.probe = esiti;
+      // ok = il video arriva davvero · cors = ci puo' pensare il lettore del dispositivo · fermo = la lista
+      // si legge ma il video non arriva · muto = non risponde
+      // l'indirizzo scritto nella lista ha sempre la precedenza, se e' utilizzabile: si scende alle fonti
+      // alternative solo quando lui non lo e'. Fra quelle, vince la prima della lista che va bene.
       const usabile = u => esiti.get(u) === "ok" || (natHls && esiti.get(u) === "cors");
-      const primo = cand.find(usabile) || cand.find(u => esiti.get(u) === "ok");
+      const voto = u => { const r = esiti.get(u); return r === "ok" ? 4 : r === "cors" ? (natHls ? 3 : 1) : r === "fermo" ? 2 : 0; };
+      let primo = cand.find(usabile), best = 0;
+      if (!primo) for (const u of cand) if (voto(u) > best) { best = voto(u); primo = u; }
+      // nessuno manda davvero il video, ma la lista offre altre strade (per esempio il flusso DASH di La 7):
+      // meglio provare prima quelle, che non abbiamo potuto verificare, che insistere su chi sappiamo fermo
+      if (primo && esiti.get(primo) === "fermo" && altSteps.length) primo = null;
       if (primo) {
-        const dev = esiti.get(primo) === "cors";   // leggibile solo dal lettore del dispositivo
+        const dev = esiti.get(primo) === "cors" && natHls;   // leggibile solo dal lettore del dispositivo
         const voluto = steps.findIndex(x => x.url === primo && (dev ? x.e === "native" : x.e !== "native"));
         const ind = voluto >= 0 ? voluto : steps.findIndex(x => x.url === primo);
         if (ind > 0) {
@@ -1994,22 +2003,26 @@ async function playIdx(idx) {
       // si cambia soltanto l'ordine. In fondo vanno gli indirizzi che non hanno risposto e, su quelli che il
       // browser non puo' leggere, tutto cio' che non e' il lettore del dispositivo (fallirebbe allo stesso modo).
       const coda = [];
-      for (let j = steps.length - 1; j > 0; j--) {
+      for (let j = steps.length - 1; j >= 0; j--) {
         const r = esiti.get(steps[j].url);
-        if (r === "muto" || (r === "cors" && steps[j].e !== "native")) coda.unshift(...steps.splice(j, 1));
+        if (r === "muto" || (r === "cors" && steps[j].e !== "native") || (r === "fermo" && steps[j].url !== primo)) coda.unshift(...steps.splice(j, 1));
       }
+      if (!steps.length) steps.push(coda.shift());   // non si resta mai senza niente da provare
       steps.push(...coda);
     }
   }
+  P.ordine = steps.map(x => x.e + (x.alt ? "/alt" : "") + " " + x.url.slice(0, 48));
   warmNeighbours(idx); prefetchNeighbours();
   P.openT = Date.now(); P.openMs = 0;
   for (let i = 0; i < steps.length; i++) {
     const st = steps[i];
     if (token !== P.token) return;
     const tStep = Date.now();
+    if (i > 0) note("Provo un'altra fonte… (" + (i + 1) + " di " + steps.length + ")");
     try {
       P.pmt = null; P.pmtP = null; P.hlsTracks = null;
-      await attempt(st, token, pl.proxied, i + 1 < steps.length ? (slowNet() ? 13000 : 9000) : 0);
+      // finche' restano altre strade si aspetta poco e si passa oltre; l'ultima ha tutto il tempo
+      await attempt(st, token, pl.proxied, i + 1 < steps.length ? (slowNet() ? 6000 : 4000) : 0);
       if (token === P.token && st.e === "hls" && decOk) {   // parte, ma senza audio o senza video? allora formato non supportato
         if (!P.pmt && P.pmtP) await Promise.race([P.pmtP, new Promise(r => setTimeout(r, 2500))]);
         if (token !== P.token) return;
@@ -2038,6 +2051,9 @@ async function playIdx(idx) {
       P.trace.push(Object.assign({ e: st.e, url: st.url, alt: st.alt, ms: Date.now() - tStep }, e)); keep(e); stopEngines(); note("");
       // indirizzo che non risponde: inutile riprovarlo con un altro lettore, si passa direttamente alla fonte dopo
       if (/network|timeout|http|mixed/.test(e.kind || "")) for (let j = steps.length - 1; j > i; j--) if (steps[j].url === st.url) steps.splice(j, 1);
+      // scaduto il tempo, ma il server stava rispondendo: non si butta via, torna in fondo e, se nessun'altra
+      // strada funziona, ci riprova con tutto il tempo che serve
+      if (e.kind === "timeout" && !st.ritardo && i + 1 < steps.length) { st.ritardo = true; steps.push(st); }
       // ...ma se la lista non si e' potuta LEGGERE e il server risponde lo stesso (muro CORS), il lettore del
       // dispositivo ce la fa comunque, come le app per telefono e TV: si prova quello, sullo stesso indirizzo.
       if (e.kind === "network" && st.e !== "native" && hlsNative(st.url) && !isMixed(st.url) && !pl.proxied) {
@@ -2430,7 +2446,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.3.1";
+const APP_VER = "2.3.2";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2600,23 +2616,46 @@ async function plFetch(url, ms) {
 // il vincolo CORS, e anche qui il LETTORE DEL DISPOSITIVO riesce a riprodurre l'indirizzo lo stesso, perche' per
 // mostrare un video il permesso CORS non serve. La sonda distingue i tre casi: "ok" (leggibile), "cors" (il server
 // risponde ma non lascia leggere: ci pensa il lettore del dispositivo), "muto" (non risponde proprio).
-const PROBE_MEM = new Map(), PROBE_MAX = 120000;
+const PROBE_MEM = new Map(), PROBE_MAX = 120000, probeDeep = new Set();
 function probeGet(u) { const e = PROBE_MEM.get(u); return e && Date.now() - e.at < PROBE_MAX ? e.r : null; }
 function probePut(u, r) { PROBE_MEM.set(u, { r, at: Date.now() }); if (PROBE_MEM.size > 60) PROBE_MEM.delete(PROBE_MEM.keys().next().value); }
-async function plProbe(url, ms) {
-  if (plCacheGet(url)) return "ok";
-  const m = probeGet(url); if (m) return m;
+// Una lista che si scarica non vuol dire canale che parte: certi server mandano la lista e poi non
+// consegnano il video (o lo riservano a un'altra zona). Per questo si chiedono due soli byte del primo
+// pezzo: se arrivano, quella fonte parte davvero; altrimenti e' "ferma" e si prova prima un'altra.
+async function segAlive(txt, base, lim) {
+  try {
+    let t = txt, b = base;
+    if (/#EXT-X-STREAM-INF/i.test(t)) {
+      const v = firstVariant(t, b); if (!v) return false;
+      const g = plCacheGet(v) || await plFetch(v, lim); if (!g) return false;
+      t = g.t; b = g.u || v;
+    }
+    const seg = startSegment(t, b); if (!seg) return true;   // non e' una diretta: niente da controllare
+    const c = new AbortController(), to = setTimeout(() => c.abort(), lim);
+    const r = await fetch(seg, { cache: "no-store", signal: c.signal, headers: { Range: "bytes=0-1" } });
+    clearTimeout(to); return r.ok;
+  } catch (e) { return false; }
+}
+async function plProbe(url, ms, pezzo) {
+  const m = probeGet(url); if (m && !(pezzo && m === "ok" && !probeDeep.has(url))) return m;
   const lim = ms || 4500;
   let bloccato = false;
   try {
-    const c = new AbortController(), to = setTimeout(() => c.abort(), lim);
-    const r = await fetch(url, { cache: "no-store", signal: c.signal }); clearTimeout(to);
-    if (r.ok) {
-      const t = await r.text();
-      if (/#EXTM3U/i.test(t)) { plCachePut(url, t, r.url); probePut(url, "ok"); return "ok"; }
-      probePut(url, "cors"); return "cors";   // ha risposto, ma non e' una lista che sappiamo leggere: ci provi il dispositivo
+    const c0 = plCacheGet(url);
+    let t, u2;
+    if (c0) { t = c0.t; u2 = c0.u || url; }
+    else {
+      const c = new AbortController(), to = setTimeout(() => c.abort(), lim);
+      const r = await fetch(url, { cache: "no-store", signal: c.signal }); clearTimeout(to);
+      if (!r.ok) { probePut(url, "muto"); return "muto"; }   // il server ha detto di no (404, 403, geoblocco)
+      t = await r.text(); u2 = r.url;
+      if (!/#EXTM3U/i.test(t)) { probePut(url, "cors"); return "cors"; }   // non e' una lista: ci provi il dispositivo
+      plCachePut(url, t, u2);
     }
-    probePut(url, "muto"); return "muto";     // il server ha detto di no (404, 403, geoblocco)
+    if (!pezzo) { probePut(url, "ok"); return "ok"; }
+    probeDeep.add(url);
+    const vivo = await segAlive(t, u2, lim);
+    probePut(url, vivo ? "ok" : "fermo"); return vivo ? "ok" : "fermo";
   } catch (e) { bloccato = !(e && e.name === "AbortError"); }
   if (!bloccato) { probePut(url, "muto"); return "muto"; }   // tempo scaduto: server che non risponde
   try {   // richiesta "opaca": se arriva una risposta il server e' vivo, ed e' solo il muro CORS a fermare JavaScript
@@ -2627,16 +2666,20 @@ async function plProbe(url, ms) {
 }
 // si chiede a tutti gli indirizzi insieme e si riparte appena si sa abbastanza: se il principale risponde si va
 // subito, se e' muto basta la prima fonte alternativa che risponde. Non si aspetta mai il piu' lento.
-function probeRace(urls, ms, grazia) {
+// devOk dice se il lettore del dispositivo sa leggere l'HLS: solo allora un indirizzo illeggibile dal
+// browser e' comunque una strada buona. Su un PC non lo e', e conviene aspettare le fonti alternative.
+function probeRace(urls, ms, devOk, grazia) {
   return new Promise(res => {
     const out = new Map(); let left = urls.length, t = 0;
     const fine = () => { clearTimeout(t); res(out); };
-    urls.forEach((u, i) => plProbe(u, ms).then(r => {
+    const buono = u => { const r = out.get(u); return r === "ok" || (devOk && r === "cors"); };
+    urls.forEach((u, i) => plProbe(u, ms, urls.length > 1).then(r => {
       out.set(u, r); left--;
-      if (!left || (i === 0 && r !== "muto") || (r !== "muto" && out.get(urls[0]) === "muto")) return fine();
-      // una fonte alternativa ha gia' risposto e l'indirizzo principale tace ancora: gli si lascia un altro
-      // momento, poi si parte lo stesso da quella che ha risposto (il principale resta in coda, per sicurezza)
-      if (i > 0 && r !== "muto" && !t && !out.has(urls[0])) t = setTimeout(fine, grazia || 1200);
+      if (!left) return fine();
+      if (buono(u) && urls.slice(0, i).every(x => out.has(x) && !buono(x))) return fine();   // la prima strada buona
+      // una fonte alternativa va bene e l'indirizzo della lista non ha ancora dato un esito utile: gli si
+      // lascia un altro momento, poi si parte lo stesso da quella (lui resta comunque in scaletta)
+      if (i > 0 && buono(u) && !t && !buono(urls[0])) t = setTimeout(fine, grazia || 1200);
     }));
   });
 }
@@ -2689,11 +2732,11 @@ async function prefetchCh(ch) {
   // si chiede in anticipo chi risponde: cosi' quando si preme OK l'esito e' gia' noto e non si aspetta nulla.
   // Se il server non lascia leggere la lista (ci pensera' il lettore del dispositivo) o non risponde, si guardano
   // subito anche le fonti alternative della lista, per sapere gia' da quale partire.
-  const esito = await plProbe(st.url, 5000);
+  const esito = await plProbe(st.url, 5000, true);
   if (esito !== "ok") {
     if (fastLine()) for (const a of altSources(ch).slice(0, 2)) {
       let x; try { x = plan(a.url).steps.find(y => y.e === "hls" || y.e === "native"); } catch (e) { continue; }
-      if (x && !isMixed(x.url)) plProbe(x.url, 5000);
+      if (x && !isMixed(x.url)) plProbe(x.url, 5000, true);
     }
     return;
   }
@@ -2965,7 +3008,7 @@ function techDetails() {
   if (P.pmt && (P.pmt.v.length || P.pmt.a.length)) L.push("Flussi del canale: " + [...P.pmt.v, ...P.pmt.a].join(", "));
   if (P.probe && P.probe.size) {
     L.push(""); L.push("Risposta dei server (prima dell'apertura):");
-    const nome = { ok: "lista leggibile", cors: "risponde ma non si puo' leggere (CORS) -> lettore del dispositivo", muto: "non risponde" };
+    const nome = { ok: "il video arriva", fermo: "manda la lista ma non il video", cors: "risponde ma non si puo' leggere (CORS) -> lettore del dispositivo", muto: "non risponde" };
     for (const [u, r] of P.probe) L.push("  " + (nome[r] || r) + " · " + u.slice(0, 110));
   }
   if (P.trace && P.trace.length) {

@@ -1,5 +1,18 @@
 [
   {
+    "v": "2.3.2",
+    "d": "2026-11-27",
+    "n": [
+      "Rai 1, Rai 3 e La 7 partono molto prima: ora l'app non si accontenta di scaricare la lista del canale, ma chiede anche due byte del primo pezzo di video. Un server che manda la lista e poi non consegna il video viene riconosciuto subito, invece di tenere l'app in attesa",
+      "Nessun tentativo dura più di 4 secondi (6 su linea lenta) finché restano altre strade da provare; prima erano 9 e 13",
+      "Una fonte che scade non viene persa: torna in fondo e, se nient'altro funziona, ci si riprova con tutto il tempo che serve",
+      "La verifica si fa anche quando il canale ha una sola fonte HLS ma altre strade di tipo diverso, come il flusso DASH di La 7",
+      "Mentre l'app cerca, in basso compare «Provo un'altra fonte… (2 di 4)»: si capisce che sta lavorando",
+      "Corretto: su PC e telefono, dove non c'è un lettore HLS di sistema, l'app non aspettava più le fonti alternative appena l'indirizzo principale risultava illeggibile",
+      "L'indirizzo scritto nella lista ha sempre la precedenza quando è utilizzabile: si scende alle alternative solo se lui non lo è"
+    ]
+  },
+  {
     "v": "2.3.1",
     "d": "2026-11-27",
     "n": [
