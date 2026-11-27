@@ -1851,9 +1851,10 @@ function note(t) { const n = $("pNote"); if (!n) return; n.textContent = t || ""
 // ======================= lettore =======================
 const P = { list: [], idx: -1, ch: null, token: 0, hls: null, ts: null, dash: null, started: false, layer: null, hideT: 0, wake: null, retried: false, seeking: false, pip: false, pipKeep: 0 };
 const video = $("video");
-function openChannel(ch, forceInternal, forceDec) {
+function openChannel(ch, forceInternal, forceDec, forceNat) {
   zapAt = Date.now();
   P.forceDec = forceDec ? ch.key : null;
+  P.forceNat = forceNat ? ch.key : null;   // «provaci tu», detto al lettore del dispositivo
   if (CFG.player === "external" && !forceInternal && externalHref(ch)) { addRecent(ch); openExternal(ch); return; }
   const L = S.list.length && S.list.includes(ch) ? S.list : S.chans;
   P.listTab = L === S.list ? (S.q ? "q:" + S.q : S.tab) : TAB_ALL;   // da quale scheda viene la lista del lettore
@@ -1974,6 +1975,12 @@ async function playIdx(idx) {
   // cambio canale piu' rapido: il modo che l'ultima volta ha funzionato (lettore + indirizzo) si prova per primo
   const win = (store.get("win") || {})[ch.key];
   if (win) { const wi = steps.findIndex(x => x.e === win.e && x.url === win.u); if (wi > 0) steps.unshift(steps.splice(wi, 1)[0]); }
+  // chiesto espressamente dalla schermata d'errore: ci prova il lettore del dispositivo, sull'indirizzo
+  // della lista, senza passare da hls.js (e' la strada che non ha il vincolo CORS)
+  if (P.forceNat === ch.key && steps.length) {
+    const u0 = steps[0].url, ni = steps.findIndex(x => x.e === "native" && x.url === u0);
+    steps.unshift(ni >= 0 ? steps.splice(ni, 1)[0] : { e: "native", url: u0 });
+  }
   // fonte scelta a mano nel menu del lettore: va in testa e l'app non la scavalca
   const scelta = srcPick(ch);
   if (scelta != null) {
@@ -1985,7 +1992,7 @@ async function playIdx(idx) {
   // leggere la lista a JavaScript (muro CORS), si da' l'indirizzo al LETTORE DEL DISPOSITIVO, che lo riproduce
   // lo stesso: e' il motivo per cui le app per telefono e TV aprono subito canali che al browser costano secondi.
   P.probe = null;
-  if (!win && scelta == null && !FRAMED && !pl.proxied) {
+  if (!win && scelta == null && P.forceNat !== ch.key && !FRAMED && !pl.proxied) {
     const viste = new Set(), cand = [];
     for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
     if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
@@ -2093,6 +2100,12 @@ async function playIdx(idx) {
       }
     }
   }
+  // nessuna strada ha funzionato: adesso vale la pena chiedere al server che cos'ha, per poterlo
+  // dire in chiaro nella schermata d'errore (prima si sarebbe perso un giro di rete per nulla)
+  if (!P.probe && !FRAMED && !pl.proxied && steps.length) {
+    const u0 = (steps.find(x => x.e === "hls" || x.e === "native") || {}).url;
+    if (u0 && !isMixed(u0)) { const r = await plProbe(u0, 3000, true); if (token !== P.token) return; P.probe = new Map([[u0, r]]); }
+  }
   spin(false); unfreeze(); showError(lastErr || { kind: "unknown" }, ch);
 }
 function attempt(st, token, proxied, limMs) {
@@ -2116,7 +2129,7 @@ function attempt(st, token, proxied, limMs) {
         });
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
-        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: CFG.quality !== "max", backBufferLength: 15, startLevel: 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: capSize(), backBufferLength: 15, startLevel: CFG.quality === "max" ? -1 : 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
         if (!proxied) opts.pLoader = makePLoader(Hls.DefaultConfig.loader);   // liste gia' pronte: il canale parte senza aspettare
         if (st.e === "hlsx") {
           try { await decLoad(note); } catch (e) { return ko({ kind: "unknown", det: "decodificatore non caricato: " + (e && e.message || e) }); }
@@ -2270,18 +2283,35 @@ function showError(e, ch) {
     http: ["Il server ha rifiutato il canale", "Errore " + (e.code || "") + ": il canale potrebbe essere offline, cambiato di indirizzo o riservato agli abbonati."],
     drm: ["Canale protetto", "Questo canale è cifrato (DRM) e può essere visto solo nell'app ufficiale dell'emittente."],
     format: ["Formato non supportato", "Questo browser non riesce a decodificare il canale. Prova ad aprirlo in un'altra app."],
-    timeout: ["Il canale non parte", "Dopo 25 secondi non è arrivato nessun video. Il canale potrebbe essere offline o molto lento."],
+    timeout: ["Il canale non parte", "Il tempo è scaduto senza che arrivasse nessun video. Il canale potrebbe essere spento o molto lento."],
     unknown: ["Impossibile riprodurre il canale", "Riprova tra poco oppure aprilo in un'altra app."],
   }[e.kind] || ["Impossibile riprodurre il canale", "Riprova tra poco oppure aprilo in un'altra app."];
   let extra = FRAMED && (e.kind === "network" || e.kind === "unknown" || e.kind === "timeout") ? " Nell'anteprima dentro un'altra pagina (come claude.ai) i video esterni possono essere bloccati: apri l'app dal suo indirizzo." : "";
+  // Cosa ha risposto davvero il server del canale: detto in chiaro, qui, senza aprire i dettagli tecnici.
+  const dicono = {
+    ok: "Il server manda regolarmente il video, ma questo browser non riesce a leggerlo. Prova con il decodificatore avanzato o con un'altra app, per esempio VLC.",
+    fermo: "Il server manda l'elenco dei pezzi del canale ma non consegna il video: di solito vuol dire che il canale è riservato a un'altra zona o all'app ufficiale dell'emittente. Da qui non c'è modo di aggirarlo.",
+    cors: "Il server risponde, ma non autorizza un sito web a leggere il canale." + (video.canPlayType("application/vnd.apple.mpegurl") ? " Prova con il lettore del dispositivo, qui sotto." : " Su questo dispositivo non c'è un lettore capace di aggirarlo: serve un'altra app, per esempio VLC."),
+    muto: "Il server del canale non risponde affatto: l'indirizzo scritto nella lista può essere scaduto, oppure il canale è spento. Qui non c'è niente da sistemare: va aggiornata la lista." };
+  let corpo = T[1];
+  if (P.probe && P.probe.size) {
+    let r = null; try { r = P.probe.get(plan(ch.url).steps[0].url); } catch (er) {}
+    if (!dicono[r]) r = [...P.probe.values()].find(x => dicono[x]);
+    if (dicono[r]) corpo = dicono[r];   // meglio quello che ha detto il server che una frase generica
+  }
   const pre = h("pre", { class: "p-pre", text: "Raccolgo i dettagli…" }), trace = (P.trace || []).slice(); let asked = false;
   const det = h("details", { class: "p-det" }, h("summary", { text: "Dettagli tecnici" }), pre,
     h("button", { class: "btn", type: "button", style: "margin-top:8px", onclick: () => copyText(pre.textContent) }, "Copia dettagli"));
   det.addEventListener("toggle", () => { if (det.open && !asked) { asked = true; diagText(ch, trace).then(tx => { pre.textContent = tx; }, er => { pre.textContent = "Errore: " + er; }); } });
-  const box = h("div", { class: "box" }, icon("error"), h("h3", { text: T[0] }), h("p", { text: T[1] + extra }),
+  const box = h("div", { class: "box" }, icon("error"), h("h3", { text: T[0] }), h("p", { text: corpo + extra }),
     h("div", { class: "acts" },
       h("button", { class: "btn primary", type: "button", onclick: () => playIdx(P.idx) }, "Riprova"),
       h("button", { class: "btn", type: "button", onclick: () => openExternal(ch) }, "Apri in un'altra app"),
+      // strade che l'app non ha ancora percorso, a portata di un tasto invece che nascoste nel menu
+      !FRAMED && video.canPlayType("application/vnd.apple.mpegurl") && !trace.some(t => t.e === "native")
+        ? h("button", { class: "btn", type: "button", onclick: () => openChannel(ch, true, false, true) }, "Prova col lettore del dispositivo") : null,
+      !FRAMED && kindOf(ch.url) !== "file" && kindOf(ch.url) !== "dash" && !trace.some(t => t.e === "hlsx")
+        ? h("button", { class: "btn", type: "button", onclick: () => openChannel(ch, true, true) }, "Prova col decodificatore avanzato") : null,
       P.list.length > 1 ? h("button", { class: "btn", type: "button", onclick: () => zap(1) }, "Canale successivo") : null), det);
   $("pMsg").replaceChildren(box); $("pMsg").hidden = false; $("player").classList.add("has-msg"); showUi(true);
 }
@@ -2469,7 +2499,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.3.3";
+const APP_VER = "2.3.5";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2560,11 +2590,21 @@ function dataSaver() {
   const c = navigator.connection;
   return !!(c && (c.saveData || /(^|-)2g/.test(c.effectiveType || "")));
 }
-// con il risparmio dati si sta sotto i 540p (o 1,6 Mb/s se l'altezza non e' dichiarata)
+// Il tetto alla qualita' lo decide solo l'app. Quello automatico di hls.js, legato alla DIMENSIONE del
+// riquadro video, sembra sensato (non scaricare piu' di quanto lo schermo mostri) ma ha due difetti: se
+// il riquadro viene misurato piccolo - una finestra ridotta, un televisore che dichiara una pagina piu'
+// piccola del pannello - il canale resta inchiodato in basso e non risale mai, e per di piu' sovrascrive
+// il tetto del risparmio dati. Quindi lo si tiene sempre spento: cosi' ogni canale puo' arrivare alla
+// qualita' piu' alta che dichiara, e l'unico limite resta la velocita' vera della connessione.
+function capSize() { return false; }
+// risparmio dati: sotto i 540p · finestrella: sotto i 720p, tanto il riquadro e' piccolo
 function levelCap(levels) {
-  if (!levels || levels.length < 2 || !dataSaver()) return -1;
+  if (!levels || levels.length < 2) return -1;
+  const lim = dataSaver() ? 540 : P.pip ? 720 : 0;
+  if (!lim) return -1;
+  const bit = lim <= 540 ? 1.6e6 : 3.5e6;
   let best = 0;
-  levels.forEach((l, i) => { const h = l.height || 0; if ((h && h <= 540) || (!h && (l.bitrate || 0) <= 1.6e6)) best = Math.max(best, i); });
+  levels.forEach((l, i) => { const h = l.height || 0; if ((h && h <= lim) || (!h && (l.bitrate || 0) <= bit)) best = Math.max(best, i); });
   return best;
 }
 function applyQuality() {
@@ -2572,7 +2612,7 @@ function applyQuality() {
   if (h && h.levels) {
     try {
       h.autoLevelCapping = levelCap(h.levels);
-      h.config.capLevelToPlayerSize = CFG.quality !== "max";
+      h.config.capLevelToPlayerSize = capSize();
     } catch (e) {}
   }
   const dp = P.dash;
@@ -2580,7 +2620,7 @@ function applyQuality() {
     try {
       const lv = (dp.getBitrateInfoListFor && dp.getBitrateInfoListFor("video")) || [];
       const max = dataSaver() && lv.length ? 1600 : 0;
-      dp.updateSettings({ streaming: { abr: { maxBitrate: { video: max || -1 }, limitBitrateByPortal: CFG.quality !== "max" } } });
+      dp.updateSettings({ streaming: { abr: { maxBitrate: { video: max || -1 }, limitBitrateByPortal: capSize() } } });
     } catch (e) {}
   }
 }
@@ -2599,11 +2639,12 @@ function qualityProbe() {
   if (!h.levels || h.levels.length < 2 || !h.autoLevelEnabled) return;
   if (dataSaver() || CFG.slowNet || NET.rebuf || NET.recon) return;
   const now = Date.now();
+  const base = CFG.quality === "max" ? 6000 : 12000;   // con «Massima» si riprova a salire piu' spesso
   if (probeLv >= 0) {   // esito del tentativo precedente
-    if (h.currentLevel >= probeLv) { probeWait = 12000; } else { probeWait = Math.min(probeWait * 2, 120000); }
+    if (h.currentLevel >= probeLv) { probeWait = base; } else { probeWait = Math.min(probeWait * 2, 120000); }
     probeLv = -1;
   }
-  if (h.currentLevel < 0 || h.currentLevel >= h.maxAutoLevel) { probeWait = 12000; return; }
+  if (h.currentLevel < 0 || h.currentLevel >= h.maxAutoLevel) { probeWait = base; return; }
   if (NET.stalls.filter(t => now - t < 20000).length) return;
   // in diretta la scorta non puo' superare la distanza dal «vivo»: basta che sia piena
   let pieno = 4;
@@ -2832,6 +2873,7 @@ function exitPip() {
 function pipMode(on) {
   if (on === !!P.pip) return;
   P.pip = on;
+  applyQuality();   // nella finestrella basta una qualita' da finestrella; tornando grande si risale
   const pl = $("player");
   pl.classList.toggle("pip", on);
   if (on) {
@@ -2984,7 +3026,8 @@ function playerOptions() {
   if (hls && hls.levels && hls.levels.length > 1) {
     const auto = hls.autoLevelEnabled, lv = hls.levels;
     const bw = Math.round((hls.bandwidthEstimate || 0) / 1e5) / 10;
-    const o = [{ v: -1, label: "Automatica", sub: (auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione") + (bw > 0.1 ? "  ·  connessione " + bw + " Mb/s" : "") }]
+    const alto = lv.reduce((a, l) => Math.max(a, l.height || 0), 0);
+    const o = [{ v: -1, label: "Automatica", sub: (auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione") + (alto ? "  ·  massima del canale " + alto + "p" : "") + (bw > 0.1 ? "  ·  connessione " + bw + " Mb/s" : "") }]
       .concat(lv.map((l, i) => ({ v: i, label: qName(l) })).reverse());
     add(optGroup("Qualità video", o, auto ? -1 : hls.currentLevel, v => { try { hls.currentLevel = v; if (v >= 0) hls.loadLevel = v; } catch (e) {} }, () => closeLayer(L)));
   } else if (dp && dp.getBitrateInfoListFor) {
@@ -2997,7 +3040,12 @@ function playerOptions() {
       }, () => closeLayer(L)));
     }
   }
-  if (!any) add(h("p", { class: "opt-none", text: "Questo canale offre una sola versione: nessuna scelta di audio, sottotitoli o qualità." }));
+  if (!any) {
+    const uno = hls && hls.levels && hls.levels.length === 1 ? (hls.levels[0].height || 0) : 0;
+    add(h("p", { class: "opt-none", text: uno
+      ? "Questo canale è trasmesso solo a " + uno + "p: non esiste una qualità più alta da scegliere, qualunque sia il nome del canale."
+      : "Questo canale offre una sola versione: nessuna scelta di audio, sottotitoli o qualità." }));
+  }
   // --- fonte del canale: quando la lista offre piu' strade per lo stesso canale si puo' scegliere
   if (P.ch && !FRAMED) {
     const alts = altSources(P.ch);
@@ -3041,7 +3089,9 @@ function techDetails() {
   if (P.openMs) L.push("Partito in: " + (P.openMs < 1000 ? P.openMs + " ms" : (P.openMs / 1000).toFixed(1) + " s"));
   if (h2 && h2.levels && h2.levels.length) {
     const lv = h2.levels[h2.currentLevel] || h2.levels[h2.loadLevel] || {};
-    L.push("Qualità: " + (lv.height ? lv.height + "p" : "?") + (h2.autoLevelEnabled ? " (automatica)" : " (scelta a mano)") + " su " + h2.levels.length);
+    const alto = h2.levels.reduce((a, l) => Math.max(a, l.height || 0), 0);
+    L.push("Qualità: " + (lv.height ? lv.height + "p" : "?") + (h2.autoLevelEnabled ? " (automatica)" : " (scelta a mano)") + " · il canale arriva a " + (alto ? alto + "p" : "?") + " su " + h2.levels.length + " versioni");
+    if (h2.autoLevelCapping >= 0) L.push("Tetto attivo: " + (dataSaver() ? "risparmio dati" : "finestrella") + " · massimo raggiungibile ora " + ((h2.levels[h2.maxAutoLevel] || {}).height || "?") + "p");
     if (h2.bandwidthEstimate) L.push("Velocità misurata: " + (h2.bandwidthEstimate / 1e6).toFixed(1) + " Mb/s");
   }
   L.push("Scorta video pronta: " + bufAhead().toFixed(1) + " s");

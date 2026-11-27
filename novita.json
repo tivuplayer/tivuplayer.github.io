@@ -1,5 +1,26 @@
 [
   {
+    "v": "2.3.5",
+    "d": "2026-11-27",
+    "n": [
+      "Risolto: certi canali restavano inchiodati a bassa qualità e non risalivano mai, anche con la connessione libera. Il lettore si metteva un tetto in base a quanto era grande il riquadro del video, e se il riquadro veniva misurato più piccolo del pannello (succede su diversi browser da televisore) un canale 1080p si vedeva a 480p senza che nulla lo segnalasse",
+      "Ora quel tetto automatico è spento: ogni canale può arrivare alla qualità più alta che dichiara, e l'unico limite resta la velocità vera della connessione",
+      "Lo stesso tetto rubava il posto a quello del «Risparmio dati», che quindi non sempre funzionava: adesso il limite lo decide solo l'app",
+      "Nel menu della qualità si legge ora anche la qualità massima del canale, così si distingue subito «l'app ha scelto una qualità bassa» da «il canale non trasmette di meglio»; se il canale ha una sola versione lo dice con la risoluzione, qualunque sia il nome del canale",
+      "«Massima» ora parte subito dalla qualità che la connessione regge, invece di partire bassa e salire, e riprova a salire più spesso",
+      "Nei Dettagli tecnici si vede se è attivo un tetto e quale qualità è raggiungibile in quel momento"
+    ]
+  },
+  {
+    "v": "2.3.4",
+    "d": "2026-11-27",
+    "n": [
+      "Quando un canale non parte, l'app ora dice in chiaro che cosa ha risposto il suo server: se non risponde affatto (indirizzo scaduto nella lista), se risponde ma non autorizza un sito web a leggerlo, oppure se manda l'elenco dei pezzi ma non consegna il video perché è riservato a un'altra zona o all'app ufficiale",
+      "Nella schermata d'errore ci sono due nuovi pulsanti con le strade non ancora provate: «Prova col lettore del dispositivo» e «Prova col decodificatore avanzato», prima nascoste nel menu",
+      "Serve per i canali che nella lista hanno un solo indirizzo, come NOve e Rai Movie: se quello non va, l'app non ha fonti alternative da provare, e almeno adesso si capisce perché"
+    ]
+  },
+  {
     "v": "2.3.3",
     "d": "2026-11-27",
     "n": [
