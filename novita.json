@@ -1,5 +1,15 @@
 [
   {
+    "v": "2.3.1",
+    "d": "2026-11-27",
+    "n": [
+      "Corretto: Rai 1 non partiva più e Rai 2 finiva su una fonte alternativa che sfasa audio e video. L'indirizzo scritto nella lista per Rai 1, Rai 2 e La 7 non finisce in «.m3u8», e per via di questo la verifica introdotta ieri lo saltava: venivano promosse le fonti alternative anche quando non serviva",
+      "Ora la verifica preventiva riguarda sempre e per primo l'indirizzo scritto nella lista, qualunque forma abbia",
+      "La verifica può solo cambiare l'ordine dei tentativi: nessuna strada viene più tolta, così un server lento non fa mai fallire un canale",
+      "Se il lettore del dispositivo rifiuta un indirizzo, ora se ne ricorda solo per quell'indirizzo e non per tutti"
+    ]
+  },
+  {
     "v": "2.3.0",
     "d": "2026-11-27",
     "n": [

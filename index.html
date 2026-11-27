@@ -1898,7 +1898,8 @@ function kindOf(url) {
 // Il lettore del dispositivo sa leggere l'HLS da solo? Su smart TV, iPhone e Android e' si', e allora puo' aprire
 // anche gli indirizzi che il browser non lascia leggere a JavaScript. Qualche browser dice di si' e poi non ce la fa:
 // alla prima bocciatura lampo ce lo ricordiamo e non glielo chiediamo piu'.
-function hlsNative() { return !!video.canPlayType("application/vnd.apple.mpegurl") && !store.get("natBad", false); }
+const NAT_NO = new Set();   // indirizzi che il lettore del dispositivo ha rifiutato all'istante
+function hlsNative(url) { return !!video.canPlayType("application/vnd.apple.mpegurl") && !(url && NAT_NO.has(url)) && store.get("natNo", 0) < 3; }
 function plan(url) {
   const k = kindOf(url), mse = !!(window.MediaSource || window.ManagedMediaSource), natHls = !!video.canPlayType("application/vnd.apple.mpegurl");
   const proxied = !!(CFG.proxy.trim() && (CFG.proxyVideo || isMixed(url)));
@@ -1963,8 +1964,9 @@ async function playIdx(idx) {
   P.probe = null;
   if (!win && !FRAMED && !pl.proxied) {
     const viste = new Set(), cand = [];
-    for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && kindOf(st.url) === "hls" && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
-    const natHls = hlsNative();
+    for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
+    if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
+    const natHls = hlsNative(cand[0]);
     const noto = cand.length && cand.every(u => probeGet(u) || plCacheGet(u));
     // con un indirizzo solo non c'e' niente da confrontare: si parte subito e, se il browser non riesce a
     // leggere la lista, piu' sotto si chiede al lettore del dispositivo. Cosi' i canali normali non perdono
@@ -1988,12 +1990,14 @@ async function playIdx(idx) {
           if (ni > 0) steps.unshift(steps.splice(ni, 1)[0]);
         }
       }
-      // indirizzi che non rispondono proprio: si tolgono dalla scaletta, niente attese inutili
-      for (let j = steps.length - 1; j > 0; j--) if (esiti.get(steps[j].url) === "muto") steps.splice(j, 1);
-      // su un indirizzo che il browser non puo' leggere, tutto cio' che non e' il lettore del dispositivo
-      // fallirebbe allo stesso modo: si lascia in fondo, dopo le altre strade
+      // Questa e' solo una domanda fatta in anticipo, non una sentenza: nessuna strada viene mai buttata via,
+      // si cambia soltanto l'ordine. In fondo vanno gli indirizzi che non hanno risposto e, su quelli che il
+      // browser non puo' leggere, tutto cio' che non e' il lettore del dispositivo (fallirebbe allo stesso modo).
       const coda = [];
-      for (let j = steps.length - 1; j > 0; j--) if (esiti.get(steps[j].url) === "cors" && steps[j].e !== "native") coda.unshift(...steps.splice(j, 1));
+      for (let j = steps.length - 1; j > 0; j--) {
+        const r = esiti.get(steps[j].url);
+        if (r === "muto" || (r === "cors" && steps[j].e !== "native")) coda.unshift(...steps.splice(j, 1));
+      }
       steps.push(...coda);
     }
   }
@@ -2016,7 +2020,7 @@ async function playIdx(idx) {
         P.started = true; spin(false); unfreeze(); updateSeek(); updateMini(); backToPip(); P.step = st; P.proxied = pl.proxied; netReset();
         P.openMs = Date.now() - P.openT; P.trace.push({ e: st.e, url: st.url, alt: st.alt, ok: true, ms: Date.now() - tStep });
         altRemember(ch, st.alt); winRemember(ch, st); if (st.e !== "hlsx") decForget(ch);
-        if (st.e === "native" && kindOf(st.url) === "hls" && store.get("natBad", false)) store.set("natBad", false);
+        if (st.e === "native" && store.get("natNo", 0)) store.set("natNo", 0);   // ce la fa: il brutto ricordo si cancella
         if (st.alt) { note("Fonte alternativa dalla lista: " + st.alt.name); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (!store.get("chlHint2", false)) { store.set("chlHint2", true); note(tvOn() ? "Su e giù cambiano canale, OK mostra i comandi, i numeri sintonizzano" : "Scorri a destra o a sinistra per cambiare canale, in su per vedere tutti i canali"); setTimeout(() => { if (P.token === token) note(""); }, 5000); }
         else if (st.e === "hlsx") { decRemember(ch); note("Decodificatore avanzato attivo" + (P.decInfo && P.decInfo.probe ? "" : "")); setTimeout(() => { if (P.token === token) note(""); }, 4000); } else note("");
@@ -2027,13 +2031,16 @@ async function playIdx(idx) {
       if (token !== P.token) return;
       if (st.e === "hlsx" && P.decInfo) e.det = (e.det || "") + " · flussi: " + P.decInfo.probe;
       // ha detto di saper leggere l'HLS e invece l'ha rifiutato subito: non lo si prova piu' per primo
-      if (st.e === "native" && kindOf(st.url) === "hls" && e.kind === "format" && Date.now() - tStep < 2000) store.set("natBad", true);
+      if (st.e === "native" && e.kind === "format" && Date.now() - tStep < 2000 && !NAT_NO.has(st.url)) {
+        NAT_NO.add(st.url); if (NAT_NO.size > 80) NAT_NO.delete(NAT_NO.values().next().value);
+        store.set("natNo", (store.get("natNo", 0) || 0) + 1);   // tre indirizzi diversi rifiutati: il lettore non sa farlo
+      }
       P.trace.push(Object.assign({ e: st.e, url: st.url, alt: st.alt, ms: Date.now() - tStep }, e)); keep(e); stopEngines(); note("");
       // indirizzo che non risponde: inutile riprovarlo con un altro lettore, si passa direttamente alla fonte dopo
       if (/network|timeout|http|mixed/.test(e.kind || "")) for (let j = steps.length - 1; j > i; j--) if (steps[j].url === st.url) steps.splice(j, 1);
       // ...ma se la lista non si e' potuta LEGGERE e il server risponde lo stesso (muro CORS), il lettore del
       // dispositivo ce la fa comunque, come le app per telefono e TV: si prova quello, sullo stesso indirizzo.
-      if (e.kind === "network" && st.e !== "native" && hlsNative() && kindOf(st.url) === "hls" && !isMixed(st.url) && !pl.proxied) {
+      if (e.kind === "network" && st.e !== "native" && hlsNative(st.url) && !isMixed(st.url) && !pl.proxied) {
         const r = await plProbe(st.url, 2500); if (token !== P.token) return;
         if (r === "cors") steps.splice(i + 1, 0, { e: "native", url: st.url, alt: st.alt });
       }
@@ -2423,7 +2430,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.3.0";
+const APP_VER = "2.3.1";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2677,8 +2684,8 @@ async function prefetchSeg(url) {
 }
 async function prefetchCh(ch) {
   if (!ch || FRAMED) return;
-  let st; try { st = plan(ch.url).steps.find(x => x.e === "hls" || x.e === "native"); } catch (e) { return; }
-  if (!st || isMixed(st.url) || kindOf(st.url) !== "hls") return;
+  let st; try { st = plan(ch.url).steps[0]; } catch (e) { return; }
+  if (!st || (st.e !== "hls" && st.e !== "native") || isMixed(st.url)) return;
   // si chiede in anticipo chi risponde: cosi' quando si preme OK l'esito e' gia' noto e non si aspetta nulla.
   // Se il server non lascia leggere la lista (ci pensera' il lettore del dispositivo) o non risponde, si guardano
   // subito anche le fonti alternative della lista, per sapere gia' da quale partire.
@@ -2686,7 +2693,7 @@ async function prefetchCh(ch) {
   if (esito !== "ok") {
     if (fastLine()) for (const a of altSources(ch).slice(0, 2)) {
       let x; try { x = plan(a.url).steps.find(y => y.e === "hls" || y.e === "native"); } catch (e) { continue; }
-      if (x && !isMixed(x.url) && kindOf(x.url) === "hls") plProbe(x.url, 5000);
+      if (x && !isMixed(x.url)) plProbe(x.url, 5000);
     }
     return;
   }
@@ -2966,7 +2973,7 @@ function techDetails() {
     for (const t of P.trace) L.push("  " + (t.ok ? "riuscito  " : "fallito   ") + engineName(t.e) + (t.alt ? " · " + t.alt.name : "")
       + (t.ms != null ? " · " + t.ms + " ms" : "") + (t.ok ? "" : " · " + (t.kind || "") + (t.det ? " · " + t.det : "")));
   }
-  L.push(""); L.push("Dispositivo: " + (tvOn() ? "modalità TV" : "normale") + " · HLS nel lettore del dispositivo: " + (video.canPlayType("application/vnd.apple.mpegurl") ? (store.get("natBad", false) ? "dichiarato ma non funzionante" : "sì") : "no") + " · " + (navigator.userAgent || "").slice(0, 120));
+  L.push(""); L.push("Dispositivo: " + (tvOn() ? "modalità TV" : "normale") + " · HLS nel lettore del dispositivo: " + (video.canPlayType("application/vnd.apple.mpegurl") ? (store.get("natNo", 0) >= 3 ? "dichiarato ma non funzionante" : "sì") : "no") + " · " + (navigator.userAgent || "").slice(0, 120));
   return L.join("\n");
 }
 function techDialog() {
