@@ -1,5 +1,15 @@
 [
   {
+    "v": "2.4.7",
+    "d": "2026-11-28",
+    "n": [
+      "Audio e video fuori sincrono: quando un dispositivo non riesce a decodificare un canale non rallenta, butta via fotogrammi video mentre l'audio continua a tempo — e si vede il video restare indietro. Ora il lettore se ne accorge e abbassa la qualità da solo finché il dispositivo non sta al passo",
+      "Nei «Dettagli tecnici» compare quanti fotogrammi sono stati persi: è la misura che dice se la causa è questa",
+      "Se la perdita è alta, l'app lo dice in chiaro e suggerisce di scegliere una qualità più bassa",
+      "La qualità scelta a mano viene ora ricordata per quel canale: prima si perdeva al cambio canale e andava rifatta ogni volta"
+    ]
+  },
+  {
     "v": "2.4.6",
     "d": "2026-11-28",
     "n": [

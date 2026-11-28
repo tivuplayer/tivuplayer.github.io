@@ -1868,6 +1868,15 @@ function idStem(id) { return String(id).toLowerCase().replace(/\.(hd|fhd|uhd|sd|
 // «Estero» che al posto del programma manda un cartello sui diritti di trasmissione).
 // Lettore scelto a mano. Serve soprattutto per l'audio fuori sincrono: quando a decodificare e' il
 // lettore del televisore l'app non puo' correggere nulla, ma puo' passare la palla a un altro lettore.
+// Qualita' scelta a mano: prima valeva solo fino al cambio canale, e chi la abbassava per far tornare
+// il sincrono se la ritrovava alta a ogni riapertura.
+function qPick(ch) { const m = store.get("qpick") || {}; return m[ch.key] || 0; }
+function qPickSet(ch, h) {
+  const m = store.get("qpick") || {};
+  if (!h) delete m[ch.key]; else m[ch.key] = h;
+  const ks = Object.keys(m); if (ks.length > 200) delete m[ks[0]];
+  store.set("qpick", m);
+}
 function engPick(ch) { const m = store.get("engpick") || {}; return m[ch.key] || null; }
 function engPickSet(ch, e) {
   const m = store.get("engpick") || {};
@@ -2266,7 +2275,7 @@ function attempt(st, token, proxied, limMs) {
         });
         await loadScript(LIB.hls); if (token !== P.token) return ko({ kind: "stale" });
         if (!window.Hls || !Hls.isSupported()) return ko({ kind: "format" });
-        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: capSize(), backBufferLength: 15, startLevel: CFG.quality === "max" ? -1 : 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
+        const opts = { enableWorker: true, startFragPrefetch: true, capLevelToPlayerSize: capSize(), capLevelOnFPSDrop: true, fpsDroppedMonitoringPeriod: 4000, fpsDroppedMonitoringThreshold: 0.15, backBufferLength: 15, startLevel: CFG.quality === "max" ? -1 : 0, abrEwmaDefaultEstimate: bwStart(), ...hlsNetOpts(), manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 3, xhrSetup: proxied ? (xhr, u) => { xhr.open("GET", proxify(u), true); } : undefined };
         if (!proxied) opts.pLoader = makePLoader(Hls.DefaultConfig.loader);   // liste gia' pronte: il canale parte senza aspettare
         if (st.e === "hlsx") {
           try { await decLoad(note); } catch (e) { return ko({ kind: "unknown", det: "decodificatore non caricato: " + (e && e.message || e) }); }
@@ -2667,7 +2676,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.4.6";
+const APP_VER = "2.4.7";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -2781,6 +2790,8 @@ function applyQuality() {
     try {
       h.autoLevelCapping = levelCap(h.levels);
       h.config.capLevelToPlayerSize = capSize();
+      const q = P.ch && qPick(P.ch);
+      if (q) { const i = h.levels.findIndex(l => (l.height || 0) === q); if (i >= 0 && h.currentLevel !== i) { h.currentLevel = i; h.loadLevel = i; } }
     } catch (e) {}
   }
   const dp = P.dash;
@@ -3197,7 +3208,10 @@ function playerOptions() {
     const alto = lv.reduce((a, l) => Math.max(a, l.height || 0), 0);
     const o = [{ v: -1, label: "Automatica", sub: (auto && hls.currentLevel >= 0 ? "ora " + qName(lv[hls.currentLevel]) : "si adatta alla connessione") + (alto ? "  ·  massima del canale " + alto + "p" : "") + (bw > 0.1 ? "  ·  connessione " + bw + " Mb/s" : "") }]
       .concat(lv.map((l, i) => ({ v: i, label: qName(l) })).reverse());
-    add(optGroup("Qualità video", o, auto ? -1 : hls.currentLevel, v => { try { hls.currentLevel = v; if (v >= 0) hls.loadLevel = v; } catch (e) {} }, () => closeLayer(L)));
+    add(optGroup("Qualità video", o, auto ? -1 : hls.currentLevel, v => {
+      try { hls.currentLevel = v; if (v >= 0) hls.loadLevel = v; } catch (e) {}
+      if (P.ch) qPickSet(P.ch, v >= 0 ? (lv[v].height || 0) : 0);   // e la si ritrova alla prossima apertura
+    }, () => closeLayer(L)));
   } else if (dp && dp.getBitrateInfoListFor) {
     const lv = dp.getBitrateInfoListFor("video") || [];
     if (lv.length > 1) {
@@ -3281,6 +3295,8 @@ function techDetails() {
     if (h2.autoLevelCapping >= 0) L.push("Tetto attivo: " + (dataSaver() ? "risparmio dati" : "finestrella") + " · massimo raggiungibile ora " + ((h2.levels[h2.maxAutoLevel] || {}).height || "?") + "p");
     if (h2.bandwidthEstimate) L.push("Velocità misurata: " + (h2.bandwidthEstimate / 1e6).toFixed(1) + " Mb/s");
   }
+  const fp = framesLost();
+  if (fp) L.push("Fotogrammi persi: " + fp.persi + " su " + fp.tot + " (" + (fp.pct * 100).toFixed(1) + "%)" + (fp.pct > 0.05 ? " · il dispositivo non sta al passo: è questa la causa tipica dell'audio fuori sincrono" : ""));
   L.push("Scorta video pronta: " + bufAhead().toFixed(1) + " s");
   try { const d = liveDetails(); if (d && d.targetduration) L.push("Durata dei pezzi del canale: " + d.targetduration + " s"); } catch (e) {}
   if (P.pmt && (P.pmt.v.length || P.pmt.a.length)) L.push("Flussi del canale: " + [...P.pmt.v, ...P.pmt.a].join(", "));
@@ -3442,6 +3458,26 @@ function hlsNetOpts() {
     ? { liveSyncDurationCount: 5, maxBufferLength: 45, maxMaxBufferLength: 80, fragLoadingTimeOut: 40000, manifestLoadingTimeOut: 20000, levelLoadingTimeOut: 20000, abrBandWidthFactor: 0.8, abrBandWidthUpFactor: 0.5 }
     : { liveSyncDurationCount: 3, maxBufferLength: 30, maxMaxBufferLength: 90, abrBandWidthUpFactor: 0.8, abrEwmaFastLive: 2.5 };
 }
+// Quando un dispositivo non ce la fa a decodificare, non rallenta: BUTTA VIA fotogrammi video mentre
+// l'audio continua a tempo. Il risultato che si vede e' «il video e' indietro rispetto all'audio».
+// Questa e' la misura che lo dice, ed e' la prima cosa da guardare quando il sincrono non torna.
+function framesLost() {
+  try {
+    const q = video.getVideoPlaybackQuality && video.getVideoPlaybackQuality();
+    if (!q || !q.totalVideoFrames) return null;
+    return { persi: q.droppedVideoFrames || 0, tot: q.totalVideoFrames, pct: (q.droppedVideoFrames || 0) / q.totalVideoFrames };
+  } catch (e) { return null; }
+}
+let persiVisto = 0;
+setInterval(() => {
+  if (!P.started || document.hidden || $("player").hidden || !P.ch) return;
+  if (Date.now() - (P.openT || 0) < 20000) return;
+  const f = framesLost(); if (!f || f.tot < 300 || f.pct < 0.1) return;
+  if (Date.now() - persiVisto < 300000) return;   // al massimo un avviso ogni cinque minuti
+  persiVisto = Date.now();
+  note("Questo dispositivo non sta al passo con la qualità del canale: il video resta indietro rispetto all'audio. Scegli una qualità più bassa dal menu del lettore.");
+  setTimeout(() => note(""), 9000);
+}, 5000);
 function bufAhead() {
   const b = video.buffered, t = video.currentTime;
   for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.5 && b.end(i) > t) return b.end(i) - t;
