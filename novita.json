@@ -1,5 +1,26 @@
 [
   {
+    "v": "2.4.5",
+    "d": "2026-11-28",
+    "n": [
+      "Rifatta la fascia in basso del lettore: una banda sola che attraversa lo schermo, con logo, «DIRETTA», orario, titolo del programma, avanzamento e «Dopo…» a sinistra, e i comandi allineati sulla stessa riga a destra. Prima erano due blocchi scollegati alle due estremità",
+      "Via la scatola sfocata: al suo posto una sfumatura che scurisce la parte bassa dell'immagine, come nei lettori da televisore, così il testo resta leggibile su qualunque scena",
+      "Sul televisore i caratteri sono molto più grandi: titolo del programma e nome del canale a 29 px invece di 18, orari a 17, numero del canale a 19, logo a 68 px, pulsanti centrali da 74 e 96 px",
+      "Niente più barra di avanzamento sui canali in diretta: quel «0:37 / 0:56» era la finestra tenuta dal server, non la durata del programma, e non si poteva usare. Resta sui video registrati",
+      "Sul telefono «Tutta la programmazione» diventa «Programmazione», così l'orario del programma non viene più troncato"
+    ]
+  },
+  {
+    "v": "2.4.4",
+    "d": "2026-11-28",
+    "n": [
+      "Corretto: il bilanciere CH+/CH− del telecomando cambiava canale al contrario. Ora, come su qualsiasi televisore, SU va al numero successivo e GIÙ al precedente: da Rai 2, su porta a Rai 3",
+      "Anche le frecce del disco centrale seguono ora la stessa convenzione: su al successivo, giù al precedente (prima erano invertite rispetto al bilanciere)",
+      "Riconosciuti anche i televisori che mandano solo il codice del tasto senza il nome (427 e 428 su LG e Samsung, 33 e 34 su altri)",
+      "Il bilanciere cambia canale anche quando i comandi del lettore sono in vista; le frecce in quel caso continuano a spostare la selezione fra i pulsanti"
+    ]
+  },
+  {
     "v": "2.4.3",
     "d": "2026-11-28",
     "n": [

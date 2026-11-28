@@ -579,6 +579,50 @@ html.tv .grid .ch-more { display: grid; position: absolute; top: 4px; right: 4px
 html.tv .grid .ch:hover .ch-more, html.tv .grid .ch:focus .ch-more, html.tv .grid .ch-more:focus { opacity: 1; }
 html.tv .ch-more:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
 .adv:not([open]) .adv-b { display: none; }
+
+/* ======================= aspetto del lettore =======================
+   Una banda sola in basso: logo e programma a sinistra, comandi a destra, tutto sulla stessa riga.
+   Prima il riquadro delle informazioni era una scatola sfocata larga meta' schermo e i pulsanti stavano
+   per conto loro all'estremita' opposta: due isole scollegate. */
+.p-bot { background: linear-gradient(transparent, rgba(0, 0, 0, .62) 20%, rgba(0, 0, 0, .93) 52%, rgba(0, 0, 0, .98)); padding-top: 72px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); gap: 10px; }
+.p-epg { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 2px 4px; text-shadow: 0 1px 4px rgba(0, 0, 0, .7); }
+.p-epg.tap:hover, .p-epg.tap:focus-visible { background: rgba(255, 255, 255, .12); }
+.p-epg .pb { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .26); margin: 3px 0; }
+@media (min-width: 700px) { .p-epg .pb { max-width: 52vw; } }
+.p-epg .pb i { background: var(--accent); }
+.pi-t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+
+/* schermi larghi e televisori: informazioni e comandi sulla stessa riga */
+@media (min-width: 700px) {
+  .p-bot { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "live live" "seek seek" "epg row";   /* la barra di scorrimento sta sopra, come nei lettori video: da li' «giu'» porta ai comandi */ align-items: center; column-gap: 32px; }
+  .p-golive { grid-area: live; justify-self: start; }
+  .p-epg { grid-area: epg; max-width: none; }
+  .p-row { grid-area: row; }
+  .p-seek { grid-area: seek; }
+  .pi-more { margin-left: 0; }
+}
+
+/* televisore: tutto piu' grande, si legge da tre metri */
+html.tv .p-bot { padding-left: var(--tv-x); padding-right: var(--tv-x); padding-top: 110px; padding-bottom: calc(var(--tv-y) + 10px); }
+html.tv .p-epg { max-width: none; background: none; padding: 2px 0; column-gap: 18px; }
+html.tv .p-epg.tap:hover, html.tv .p-epg.tap:focus-visible { background: rgba(255, 255, 255, .12); }
+html.tv .pi-x { gap: 6px; }
+html.tv .pi-t { font-size: 29px; font-weight: 700; letter-spacing: -.015em; }
+html.tv .pi-when, html.tv .pi-more, html.tv .pi-n { font-size: 17px; }
+html.tv .p-live { font-size: 14px; letter-spacing: 1px; }
+html.tv .p-live::before { width: 10px; height: 10px; }
+html.tv .p-epg .pb { height: 7px; border-radius: 4px; margin: 5px 0; max-width: 46vw; }
+html.tv .p-title { padding-left: 14px; }
+html.tv .p-title div:first-child { font-size: 29px; font-weight: 600; }
+html.tv .p-title div:last-child { font-size: 17px; margin-top: 2px; }
+html.tv .p-num { font-size: 19px; padding: 7px 13px; border-radius: 10px; }
+html.tv .p-nm { gap: 14px; }
+html.tv .p-mid { gap: 40px; }
+html.tv .p-mid .big { width: 74px; height: 74px; }
+html.tv .p-mid .big .i { width: 40px; height: 40px; }
+html.tv .p-mid .huge { width: 96px; height: 96px; }
+html.tv .p-mid .huge .i { width: 56px; height: 56px; }
+html.tv .p-row { gap: 10px; }
 </style>
 
 </head>
@@ -945,6 +989,8 @@ function avatar(ch) {
   }
   return av;
 }
+// su uno schermo stretto la scritta lunga mangiava l'orario del programma, che veniva troncato
+function piuTesto() { return innerWidth < 700 ? "Programmazione ›" : "Tutta la programmazione ›"; }
 function epgLine(ch) {
   const x = nowNext(ch); if (!x || !x.now) return null;
   return { text: x.now.t + " · " + hm(x.now.s) + "–" + hm(x.now.e), pct: x.pct };
@@ -2417,12 +2463,12 @@ function updatePlayerInfo() {
   box.setAttribute("tabindex", hasEpg ? "0" : "-1");
   box.setAttribute("aria-label", hasEpg ? "Programmazione di " + ch.name : "");
   if (x && x.now) {
-    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), h("span", { class: "pi-when", text: hm(x.now.s) + "–" + hm(x.now.e) + " · " + leftLabel(x.now.e - Date.now()) }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), h("span", { class: "pi-when", text: hm(x.now.s) + "–" + hm(x.now.e) + " · " + leftLabel(x.now.e - Date.now()) }), hasEpg ? h("span", { class: "pi-more", text: piuTesto() }) : null));
     col.append(h("div", { class: "pi-t", text: x.now.t }));
     col.append(h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" })));
     if (x.next) col.append(h("div", { class: "pi-n" }, h("b", { text: "Dopo" }), " " + hm(x.next.s) + " · " + x.next.t));
   } else if (x && x.next) {
-    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), hasEpg ? h("span", { class: "pi-more", text: piuTesto() }) : null));
     col.append(h("div", { class: "pi-n" }, h("b", { text: "Alle " + hm(x.next.s) }), " " + x.next.t));
   } else {
     // nessuna programmazione per questo canale: accanto al logo resta almeno il suo nome
@@ -2430,8 +2476,21 @@ function updatePlayerInfo() {
     try { if (plan(ch.url).live) col.append(h("div", { class: "p-live", text: "DIRETTA" })); } catch (e) {}
   }
 }
+// Un canale in diretta non si puo' «scorrere»: la durata che dichiara e' solo la finestra tenuta dal
+// server, spesso meno di un minuto, e una barra da 0:56 confonde e basta. La barra resta per i video
+// registrati: un file, una lista che dichiara di essere finita, o una durata troppo lunga per una diretta.
+function isVod() {
+  const ch = P.ch; if (!ch) return false;
+  if (kindOf(ch.url) === "file") return true;
+  const h = P.hls;
+  if (h && h.levels && h.levels.length) {
+    const lv = h.levels[h.currentLevel] || h.levels[h.loadLevel] || h.levels[0], d = lv && lv.details;
+    if (d) return d.live === false;
+  }
+  return isFinite(video.duration) && video.duration > 600;
+}
 function updateSeek() {
-  const d = video.duration, show = !!P.ch && isFinite(d) && d > 0 && kindOf(P.ch.url) !== "ts";
+  const d = video.duration, show = !!P.ch && isFinite(d) && d > 0 && kindOf(P.ch.url) !== "ts" && isVod();
   $("pSeek").hidden = !show; const lv = $("pEpg").querySelector(".p-live"); if (lv) lv.hidden = show;   // un video registrato non e' «in diretta»
   if (!show) return;
   $("pDur").textContent = dur(d); $("pCur").textContent = dur(video.currentTime);
@@ -2592,7 +2651,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.4.3";
+const APP_VER = "2.4.5";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3700,9 +3759,12 @@ document.addEventListener("keydown", e => {
   if (inPlayer) {
     const k = e.key, uiOn = $("pUi").classList.contains("show");
     if (k >= "0" && k <= "9") { e.preventDefault(); showUi(); typeNumber(k); return; }
-    // CH+/CH− e PagSu/PagGiu cambiano sempre canale, anche con i comandi in vista
-    if (k === "PageUp" || k === "ChannelUp" || k === "MediaTrackPrevious") { e.preventDefault(); zap(-1); return; }
-    if (k === "PageDown" || k === "ChannelDown" || k === "MediaTrackNext") { e.preventDefault(); zap(1); return; }
+    // CH+/CH− (il bilanciere a destra del telecomando) e PagSu/PagGiu cambiano sempre canale, anche con i
+    // comandi in vista. Come su qualsiasi televisore: SU manda al numero successivo, GIU' al precedente.
+    // Alcuni televisori mandano solo il codice numerico: Samsung e LG usano 427 e 428, altri 33 e 34.
+    const su = k === "PageUp" || k === "ChannelUp" || k === "MediaTrackNext" || e.keyCode === 427 || e.keyCode === 33;
+    const giu = k === "PageDown" || k === "ChannelDown" || k === "MediaTrackPrevious" || e.keyCode === 428 || e.keyCode === 34;
+    if (su || giu) { e.preventDefault(); zap(su ? 1 : -1); return; }
     if (k === " " || k === "k" || k === "MediaPlayPause" || k === "MediaPlay" || k === "MediaPause") { e.preventDefault(); togglePlay(); showUi(true); return; }
     if (k === "f" || k === "F") { toggleFull(); return; }
     if (k === "m" || k === "M") { video.muted = !video.muted; showUi(true); return; }
@@ -3736,7 +3798,8 @@ document.addEventListener("keydown", e => {
       }
       e.preventDefault();
       if ((k === "ArrowLeft" || k === "ArrowRight") && isFinite(video.duration) && video.duration > 0) { video.currentTime += k === "ArrowLeft" ? -10 : 10; showUi(); return; }
-      zap(k === "ArrowDown" || k === "ArrowRight" ? 1 : -1); return;
+      // stessa convenzione del bilanciere: su e destra vanno al canale successivo, giu' e sinistra al precedente
+      zap(k === "ArrowUp" || k === "ArrowRight" ? 1 : -1); return;
     }
     showUi(); return;
   }
