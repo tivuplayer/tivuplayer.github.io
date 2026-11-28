@@ -523,6 +523,10 @@ html.tv .p-epg { background: rgba(0, 0, 0, .5); border-radius: 18px; }
 
 /* in finestrella: il lettore sparisce e si usa il resto dell'app, con una barretta in basso */
 #player.pip { opacity: 0; pointer-events: none; }
+.ck-i { color: var(--dim); font-size: 13px; margin: 0 0 10px }
+.ck-now { margin: 8px 0 2px; font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.ck-sum { margin: 0 0 6px; font-weight: 600 }
+.ck-out:empty { display: none }
 #player.pip * { pointer-events: none; }   /* in finestrella l'app sotto si tocca e si naviga normalmente */
 #player.pip #pUi { visibility: hidden; }
 html.has-mini #main { padding-bottom: 76px; }
@@ -1066,7 +1070,12 @@ function dialog({ title, body, actions, wide, onClose }) {
   overlayRoot().append(wrap);
   const L = pushLayer(() => { wrap.remove(); onClose && onClose(); });
   function close() { closeLayer(L); }
-  setTimeout(() => { const f = box.querySelector("input:not([type=checkbox]):not([type=file]), textarea"); if (f && !IS_IOS && !IS_ANDROID) f.focus(); }, 30);
+  setTimeout(() => {
+    const f = box.querySelector("input:not([type=checkbox]):not([type=file]), textarea");
+    if (f && !IS_IOS && !IS_ANDROID) return f.focus();
+    // col telecomando serve un punto di partenza dentro la finestra, altrimenti le frecce non hanno da dove muoversi
+    if (tvOn()) { const g = focusable(box)[0]; if (g) g.focus({ preventScroll: true }); }
+  }, 30);
   return { close, box };
 }
 function sheet(head, items) {
@@ -1815,6 +1824,25 @@ function srcForget(ch) {
   const a = store.get("altsrc") || {}; if (a[ch.key] != null) { delete a[ch.key]; store.set("altsrc", a); }
   PROBE_MEM.clear(); probeDeep.clear();
 }
+// Fonti che funzionano, CONDIVISE CON TUTTI: un elenco pubblicato insieme all'app, cosi' chi apre un
+// canale per la prima volta non rifa' la ricerca che qualcun altro ha gia' fatto. Vale come punto di
+// partenza: il ricordo di QUESTO dispositivo, quando c'e', ha sempre la precedenza, e se la fonte indicata
+// non funziona si riprende il giro completo dalla prima.
+let FONTI = null;
+(function caricaFonti() {
+  if (FRAMED) return;
+  fetch("fonti.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && typeof j === "object") FONTI = j; }).catch(() => {});
+})();
+function esportaFonti() {
+  const w = store.get("win") || {}, a = store.get("altsrc") || {}, out = {};
+  for (const ch of S.chans || []) {
+    const x = w[ch.key];
+    if (x && x.u) out[ch.key] = { u: x.u, e: x.e, n: ch.name };
+    else if (a[ch.key]) out[ch.key] = { u: a[ch.key], n: ch.name };
+  }
+  return JSON.stringify(out, null, 1);
+}
 function altRemember(ch, alt) {
   const m = store.get("altsrc") || {}; const cur = m[ch.key];
   if (alt ? cur === alt.url : !cur) return;
@@ -1921,16 +1949,21 @@ function hlsNative(url) { return !!video.canPlayType("application/vnd.apple.mpeg
 function plan(url) {
   const k = kindOf(url), mse = !!(window.MediaSource || window.ManagedMediaSource), natHls = !!video.canPlayType("application/vnd.apple.mpegurl");
   const proxied = !!(CFG.proxy.trim() && (CFG.proxyVideo || isMixed(url)));
-  const u = proxied ? url : isMixed(url) ? url.replace(/^http:/i, "https:") : url;
+  // http:// su pagina https: si tenta in https (la porta 80 esplicita va tolta, in https non ha senso)
+  const u = proxied ? url : isMixed(url) ? url.replace(/^http:/i, "https:").replace(/^(https:\/\/[^/]+):80(?=[/?#]|$)/i, "$1") : url;
+  const forzato = !proxied && isMixed(url);
   const steps = [];
   const hlsStep = x => mse ? { e: "hls", url: x } : natHls ? { e: "native", url: proxied ? proxify(x) : x } : null;
   if (k === "hls") steps.push(hlsStep(u), natHls && mse ? { e: "native", url: proxied ? proxify(u) : u } : null);
+  // (i passi nati da un indirizzo http vengono segnati piu' sotto, per dare il messaggio giusto)
   else if (k === "ts") steps.push(mse ? { e: "ts", url: proxied ? proxify(u) : u } : null, hlsStep(u.replace(/\.ts(\?|$)/i, ".m3u8$1").replace(/(\/live\/[^/]+\/[^/]+\/\d+)$/i, "$1.m3u8")));
   else if (k === "flv") steps.push(mse ? { e: "flv", url: proxied ? proxify(u) : u } : null);
   else if (k === "dash") steps.push(mse ? { e: "dash", url: proxied ? proxify(u) : u } : null);
   else if (k === "file") steps.push({ e: "native", url: proxied ? proxify(u) : u });
   else steps.push(hlsStep(u), mse ? { e: "ts", url: proxied ? proxify(u) : u } : null, { e: "native", url: proxied ? proxify(u) : u });
-  return { steps: steps.filter(Boolean), proxied, live: k !== "file" };
+  const fatti = steps.filter(Boolean);
+  if (forzato) for (const x of fatti) x.misto = true;   // se fallisce, la colpa e' del blocco del browser
+  return { steps: fatti, proxied, live: k !== "file" };
 }
 async function playIdx(idx) {
   const ch = P.list[idx]; if (!ch) return;
@@ -1987,12 +2020,20 @@ async function playIdx(idx) {
     const voluti = []; for (let j = steps.length - 1; j >= 0; j--) if ((steps[j].alt ? steps[j].alt.url : ch.url) === scelta) voluti.unshift(...steps.splice(j, 1));
     steps.unshift(...voluti);
   }
+  // nessun ricordo su questo dispositivo: si parte da quello che ha funzionato per gli altri utenti
+  let comune = null;
+  if (!win && scelta == null && FONTI && FONTI[ch.key] && FONTI[ch.key].u) {
+    const c = FONTI[ch.key];
+    const ci = steps.findIndex(x => x.url === c.u && (!c.e || x.e === c.e));
+    const cj = ci >= 0 ? ci : steps.findIndex(x => x.url === c.u);
+    if (cj >= 0) { comune = c; if (cj > 0) steps.unshift(steps.splice(cj, 1)[0]); }
+  }
   // Prima volta su questo canale (nessun ricordo di cosa ha funzionato): si chiede a tutti gli indirizzi insieme
   // chi risponde, e si parte da quello, senza aspettare che il primo fallisca. Se un server risponde ma non lascia
   // leggere la lista a JavaScript (muro CORS), si da' l'indirizzo al LETTORE DEL DISPOSITIVO, che lo riproduce
   // lo stesso: e' il motivo per cui le app per telefono e TV aprono subito canali che al browser costano secondi.
   P.probe = null;
-  if (!win && scelta == null && P.forceNat !== ch.key && !FRAMED && !pl.proxied) {
+  if (!win && !comune && scelta == null && P.forceNat !== ch.key && !FRAMED && !pl.proxied) {
     const viste = new Set(), cand = [];
     for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
     if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
@@ -2052,7 +2093,9 @@ async function playIdx(idx) {
     try {
       P.pmt = null; P.pmtP = null; P.hlsTracks = null;
       // finche' restano altre strade si aspetta poco e si passa oltre; l'ultima ha tutto il tempo
-      await attempt(st, token, pl.proxied, i + 1 < steps.length ? (slowNet() ? 6000 : 4000) : 0);
+      let lim = i + 1 < steps.length ? (slowNet() ? 6000 : 4000) : 0;
+      if (lim) { const td = targetDur(st.url); if (td > 2) lim = Math.max(lim, Math.round(td * 1500 + 3000)); }
+      await attempt(st, token, pl.proxied, lim);
       if (token === P.token && st.e === "hls" && decOk) {   // parte, ma senza audio o senza video? allora formato non supportato
         if (!P.pmt && P.pmtP) await Promise.race([P.pmtP, new Promise(r => setTimeout(r, 2500))]);
         if (token !== P.token) return;
@@ -2078,6 +2121,8 @@ async function playIdx(idx) {
         NAT_NO.add(st.url); if (NAT_NO.size > 80) NAT_NO.delete(NAT_NO.values().next().value);
         store.set("natNo", (store.get("natNo", 0) || 0) + 1);   // tre indirizzi diversi rifiutati: il lettore non sa farlo
       }
+      // indirizzo nato http e riscritto in https: se non risponde, il motivo vero e' il blocco del browser
+      if (st.misto && (e.kind === "network" || e.kind === "timeout")) { e.kind = "mixed"; e.det = (e.det ? e.det + " · " : "") + "indirizzo http riscritto in https"; }
       P.trace.push(Object.assign({ e: st.e, url: st.url, alt: st.alt, ms: Date.now() - tStep }, e)); keep(e); stopEngines(); note("");
       // indirizzo che non risponde: inutile riprovarlo con un altro lettore, si passa direttamente alla fonte dopo
       if (/network|timeout|http|mixed/.test(e.kind || "")) for (let j = steps.length - 1; j > i; j--) if (steps[j].url === st.url) steps.splice(j, 1);
@@ -2092,7 +2137,10 @@ async function playIdx(idx) {
       }
       // decodificatore avanzato dopo un «formato non supportato», ma non se l'indirizzo non si legge proprio (non servirebbe)
       if (st.alt) { e.det = (e.det ? e.det + " · " : "") + "fonte alternativa «" + st.alt.name + "»"; P.trace[P.trace.length - 1].det = e.det; }
-      if (!FRAMED && window.isSecureContext !== false && e.kind === "format" && (st.e === "hls" || st.e === "native") && (st.alt || hlsLike) && !steps.some(x => x.e === "hlsx" && x.alt === st.alt)
+      // Il decodificatore avanzato scarica 32 MB e poi legge il canale con le stesse regole del browser:
+      // se il server non lascia leggere l'indirizzo (muro CORS) fallirebbe comunque. Inutile scomodarlo.
+      const leggibile = probeGet(st.alt ? st.url : (hlsLike || st.url)) !== "cors";
+      if (leggibile && !FRAMED && window.isSecureContext !== false && e.kind === "format" && (st.e === "hls" || st.e === "native") && (st.alt || hlsLike) && !steps.some(x => x.e === "hlsx" && x.alt === st.alt)
         && !P.trace.some(x => x.e === "hls" && x.alt === st.alt && /network|http|mixed/.test(x.kind))) {
         const nuovo = { e: "hlsx", url: st.alt ? st.url : hlsLike, alt: st.alt };
         const ni = steps.findIndex((x, j) => j > i && x.e === "native" && x.alt === st.alt);
@@ -2116,10 +2164,27 @@ function attempt(st, token, proxied, limMs) {
     const onLoaded = () => { const p = video.play(); if (p && p.catch) p.catch(err => { if (err && err.name === "NotAllowedError") { setIcon($("pPlay"), "play"); showUi(true); ok(); } }); };
     const onPlaying = () => ok();
     const onErr = () => ko(classifyMedia(video.error, st.url));
-    const lim = st.e === "hlsx" ? 120000 : (limMs || 25000);   // se dopo c'e' un'altra strada si aspetta meno e si passa oltre
-    const tm = setTimeout(() => ko({ kind: "timeout", det: "nessun video in " + lim / 1000 + " s" + (st.e === "hlsx" && P.decErr ? " · " + P.decErr : "") }), lim);
-    function cleanup() { clearTimeout(tm); video.removeEventListener("loadeddata", onLoaded); video.removeEventListener("playing", onPlaying); video.removeEventListener("error", onErr); }
+    // Il tempo massimo misura l'IMMOBILITA', non la durata assoluta: finche' arrivano pezzi del canale si
+    // aspetta. Certi canali hanno segmenti da 6-10 secondi, e su rete mobile scaricarne uno richiede piu'
+    // tempo del tetto: con un tetto sul tempo assoluto si interrompeva un tentativo che stava funzionando.
+    const fermo = st.e === "hlsx" ? 120000 : (limMs || 25000);
+    const tutto = st.e === "hlsx" ? 180000 : Math.max(fermo * 4, 45000);   // ma non all'infinito
+    const t0 = Date.now(); let ultimo = t0, tm = 0;
+    const avanza = () => { ultimo = Date.now(); };
+    const scaduto = () => {
+      const giu = Date.now() - ultimo, tot = Date.now() - t0;
+      if (giu >= fermo || tot >= tutto) return ko({ kind: "timeout", det: "nessun video in " + Math.round(tot / 1000) + " s" + (giu < fermo ? "" : " (fermo da " + Math.round(giu / 1000) + " s)") + (st.e === "hlsx" && P.decErr ? " · " + P.decErr : "") });
+      tm = setTimeout(scaduto, Math.max(300, fermo - giu));
+    };
+    tm = setTimeout(scaduto, fermo);
+    P.avanza = avanza;   // i lettori segnalano da qui che stanno ricevendo
+    function cleanup() {
+      clearTimeout(tm); P.avanza = null;
+      video.removeEventListener("loadeddata", onLoaded); video.removeEventListener("playing", onPlaying); video.removeEventListener("error", onErr);
+      video.removeEventListener("progress", avanza); video.removeEventListener("loadedmetadata", avanza);
+    }
     video.addEventListener("loadeddata", onLoaded); video.addEventListener("playing", onPlaying); video.addEventListener("error", onErr);
+    video.addEventListener("progress", avanza); video.addEventListener("loadedmetadata", avanza);
     try {
       if (st.e === "hls" || st.e === "hlsx") {
         // la libreria non e' ancora pronta: intanto si prende la lista, cosi' i due tempi non si sommano
@@ -2163,13 +2228,22 @@ function attempt(st, token, proxied, limMs) {
                 }, 0);
                 return;
               }
-              super.load(ctx, cfg, Object.assign({}, cb, { onSuccess: (r, s2, c, n) => { const dd = c.frag && c.frag.decryptdata; if (dd && dd.method === "AES-128") peekEnc(r.data, dd); else peek(r.data); cb.onSuccess(r, s2, c, n); } }));
+              const iv = setInterval(() => { if (P.avanza) P.avanza(); }, 1000), fine = () => clearInterval(iv);
+              super.load(ctx, cfg, Object.assign({}, cb, {
+                onSuccess: (r, s2, c, n) => { fine(); const dd = c.frag && c.frag.decryptdata; if (dd && dd.method === "AES-128") peekEnc(r.data, dd); else peek(r.data); cb.onSuccess(r, s2, c, n); },
+                onError: (...a) => { fine(); cb.onError && cb.onError(...a); },
+                onTimeout: (...a) => { fine(); cb.onTimeout && cb.onTimeout(...a); },
+                onAbort: (...a) => { fine(); cb.onAbort && cb.onAbort(...a); },
+              }));
             }
           };
           P.peek = peek;
         }
         const hls = new Hls(opts);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => applyQuality());
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { if (P.avanza) P.avanza(); applyQuality(); });
+        hls.on(Hls.Events.LEVEL_LOADED, () => { if (P.avanza) P.avanza(); });
+        hls.on(Hls.Events.FRAG_LOADED, () => { if (P.avanza) P.avanza(); });
+        hls.on(Hls.Events.FRAG_BUFFERED, () => { if (P.avanza) P.avanza(); });
         hls.on(Hls.Events.LEVEL_SWITCHED, () => { if (P.hls === hls) bwRemember(hls.bandwidthEstimate); });
         hls.on(Hls.Events.BUFFER_CODECS, (_, d) => { P.hlsTracks = { v: !!(P.hlsTracks && P.hlsTracks.v) || !!(d.video || d.audiovideo), a: !!(P.hlsTracks && P.hlsTracks.a) || !!(d.audio || d.audiovideo) }; });
         if (st.e === "hls") hls.on(Hls.Events.FRAG_DECRYPTED, (_, d) => { if (P.peek && d && d.payload) P.peek(d.payload.buffer || d.payload); });
@@ -2193,7 +2267,8 @@ function attempt(st, token, proxied, limMs) {
           if (P.dash !== dp) return;
           if (!P.started) ko(e); else if (e.kind === "drm") showError(e, P.ch); else netLost(e);
         });
-        dp.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => applyQuality());
+        dp.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => { if (P.avanza) P.avanza(); applyQuality(); });
+        try { dp.on(dashjs.MediaPlayer.events.FRAGMENT_LOADING_COMPLETED, () => { if (P.avanza) P.avanza(); }); } catch (e) {}
         dp.initialize(video, st.url, true);
       } else if (st.e === "ts" || st.e === "flv") {
         await loadScript(LIB.ts); if (token !== P.token) return ko({ kind: "stale" });
@@ -2205,6 +2280,7 @@ function attempt(st, token, proxied, limMs) {
           if (P.ts !== p) return;
           if (!P.started) ko(e); else netLost(e);
         });
+        try { p.on(M.Events.STATISTICS_INFO, () => { if (P.avanza) P.avanza(); }); } catch (e) {}
         p.attachMediaElement(video); p.load();
       } else {
         video.src = st.url; video.load();
@@ -2499,7 +2575,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.3.5";
+const APP_VER = "2.4.0";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3095,6 +3171,7 @@ function techDetails() {
     if (h2.bandwidthEstimate) L.push("Velocità misurata: " + (h2.bandwidthEstimate / 1e6).toFixed(1) + " Mb/s");
   }
   L.push("Scorta video pronta: " + bufAhead().toFixed(1) + " s");
+  try { const d = liveDetails(); if (d && d.targetduration) L.push("Durata dei pezzi del canale: " + d.targetduration + " s"); } catch (e) {}
   if (P.pmt && (P.pmt.v.length || P.pmt.a.length)) L.push("Flussi del canale: " + [...P.pmt.v, ...P.pmt.a].join(", "));
   if (P.probe && P.probe.size) {
     L.push(""); L.push("Risposta dei server (prima dell'apertura):");
@@ -3259,6 +3336,15 @@ function bufAhead() {
   for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.5 && b.end(i) > t) return b.end(i) - t;
   return 0;
 }
+// Quanto dura un pezzo di questo canale. Serve per non interrompere un tentativo che sta lavorando:
+// con pezzi da 6-10 secondi, scaricarne uno su rete mobile puo' richiedere piu' del tetto normale.
+function targetDur(u) {
+  const g = plCacheGet(u); if (!g) return 0;
+  let t = g.t;
+  if (/#EXT-X-STREAM-INF/i.test(t)) { const v = firstVariant(t, g.u || u), g2 = v && plCacheGet(v); if (!g2) return 0; t = g2.t; }
+  const m = /#EXT-X-TARGETDURATION:\s*(\d+)/i.exec(t);
+  return m ? +m[1] : 0;
+}
 function liveDetails() {
   const h = P.hls; if (!h || !h.levels || !h.levels.length) return null;
   const lv = h.levels[h.currentLevel] || h.levels[h.loadLevel] || h.levels[0], d = lv && lv.details;
@@ -3388,6 +3474,97 @@ function installApp() {
 }
 
 // ======================= barra in alto, ricerca, tastiera =======================
+// ======================= controllo di tutta la lista =======================
+// Provare i canali ha senso solo dalla connessione di chi guarda: molti sono riservati all'Italia o a una
+// singola zona, e da altrove risulterebbero rotti pur funzionando benissimo. Questo controllo li chiede
+// tutti, pochi per volta, e dice quali non partono e perche'. Per ogni canale che non va, guarda anche le
+// fonti alternative della lista: se una funziona, l'app la usera' da sola all'apertura.
+async function headAlive(u, ms) {
+  const lim = ms || 7000;
+  try {
+    const c = new AbortController(), to = setTimeout(() => c.abort(), lim);
+    const r = await fetch(u, { cache: "no-store", signal: c.signal, headers: { Range: "bytes=0-1" } }); clearTimeout(to);
+    return r.ok ? "ok" : "muto";
+  } catch (e) { if (e && e.name === "AbortError") return "muto"; }
+  try {
+    const c = new AbortController(), to = setTimeout(() => c.abort(), lim);
+    await fetch(u, { mode: "no-cors", cache: "no-store", signal: c.signal }); clearTimeout(to);
+    return "cors";
+  } catch (e) { return "muto"; }
+}
+async function proveUrl(u) {
+  if (isMixed(u)) return "misto";
+  const k = kindOf(u);
+  if (k === "hls" || k === "ignoto") return await plProbe(u, 7000, true);
+  return await headAlive(u);
+}
+const ESITI = {
+  ok: "funziona",
+  misto: "indirizzo http:// su una pagina https: il browser lo blocca; si apre solo con un'altra app (VLC)",
+  cors: "il server risponde ma non lascia leggere il canale a un sito web",
+  fermo: "il server manda l'elenco dei pezzi ma non il video: riservato a un'altra zona o all'app ufficiale",
+  muto: "il server non risponde: indirizzo scaduto nella lista, o canale spento",
+};
+async function checkChannel(ch) {
+  let r;
+  try { r = await proveUrl(ch.url); } catch (e) { r = "muto"; }
+  if (r === "ok") return { esito: "ok" };
+  if (r === "cors" && hlsNative(ch.url)) return { esito: "ok", det: "lo apre il lettore del dispositivo" };
+  // non parte dall'indirizzo della lista: c'e' una fonte alternativa che funziona?
+  for (const a of altSources(ch).slice(0, 3)) {
+    let ra; try { ra = await proveUrl(a.url); } catch (e) { ra = "muto"; }
+    if (ra === "ok" || (ra === "cors" && hlsNative(a.url))) { altRemember(ch, a); return { esito: "ok", det: "con la fonte alternativa «" + a.name + "»" }; }
+  }
+  return { esito: r === "cors" ? "forse" : "no", motivo: r };
+}
+function checkAllDialog() {
+  const lista = S.chans.slice();
+  if (!lista.length) return toast("Nessun canale da controllare", 2000);
+  const stop = { v: false };
+  const barra = h("i"), prog = h("div", { class: "pb" }, barra);
+  const riga = h("p", { class: "ck-now", text: "Preparo…" });
+  const conti = h("p", { class: "ck-sum", text: "" });
+  const esito = h("div", { class: "ck-out" });
+  let fatti = 0, out = [];
+  const aggiorna = nome => {
+    barra.style.width = Math.round(fatti * 100 / lista.length) + "%";
+    riga.textContent = fatti + " di " + lista.length + (nome ? " · " + nome : "");
+    const ok = out.filter(x => x.esito === "ok").length, fo = out.filter(x => x.esito === "forse").length;
+    conti.textContent = ok + " funzionano · " + fo + " da verificare aprendoli · " + (out.length - ok - fo) + " non partono";
+  };
+  const D = dialog({ title: "Controllo di tutti i canali", wide: true,
+    actions: [{ label: "Interrompi", run: () => { stop.v = true; return false; } }, { label: "Chiudi", primary: true, run: () => { stop.v = true; } }],
+    body: [h("p", { class: "ck-i", text: "Provo a contattare il server di ogni canale, quattro per volta. Non apro i video: chiedo solo l'inizio, quindi si consuma pochissimo. Su una lista lunga ci vogliono alcuni minuti; puoi interrompere quando vuoi." }), prog, riga, conti, esito],
+    onClose: () => { stop.v = true; } });
+  (async () => {
+    let i = 0;
+    const worker = async () => {
+      while (i < lista.length && !stop.v) {
+        const ch = lista[i++];
+        let r; try { r = await checkChannel(ch); } catch (e) { r = { esito: "no", motivo: "muto" }; }
+        out.push(Object.assign({ ch }, r)); fatti++; aggiorna(ch.name);
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    // risultato: prima quelli che non partono, poi i dubbi, con il motivo
+    const righe = [];
+    righe.push("Controllo della lista «" + ((S.pl && S.pl.name) || "-") + "» · " + out.length + " canali su " + lista.length + " · " + new Date().toLocaleString("it-IT"));
+    const ok = out.filter(x => x.esito === "ok"), forse = out.filter(x => x.esito === "forse"), no = out.filter(x => x.esito === "no");
+    righe.push(ok.length + " funzionano · " + forse.length + " da verificare aprendoli · " + no.length + " non partono");
+    const blocco = (tit, arr) => { if (!arr.length) return;
+      righe.push("", tit.toUpperCase());
+      for (const x of arr) righe.push("  " + x.ch.name + (x.ch.group ? " [" + x.ch.group + "]" : "") + " — " + (ESITI[x.motivo] || x.det || "")); };
+    blocco("non partono", no); blocco("da verificare aprendoli", forse);
+    const vinti = ok.filter(x => x.det);
+    if (vinti.length) { righe.push("", "FUNZIONANO PER ALTRA VIA"); for (const x of vinti) righe.push("  " + x.ch.name + " — " + x.det); }
+    const testo = righe.join("\n");
+    esito.replaceChildren(h("pre", { class: "p-pre", text: testo }),
+      h("button", { class: "btn", type: "button", style: "margin-top:10px", onclick: () => copyText(testo) }, "Copia l'elenco"),
+      h("button", { class: "btn", type: "button", style: "margin-top:10px", onclick: () => copyText(esportaFonti()) }, "Copia le fonti che funzionano (per tutti)"));
+    riga.textContent = stop.v ? "Interrotto." : "Controllo finito.";
+    barra.style.width = "100%";
+  })();
+}
 function moreMenu() {
   const items = [];
   if (S.pl && S.pl.url) items.push({ icon: "refresh", label: "Aggiorna playlist", run: () => refreshPlaylist(S.pl) });
@@ -3398,7 +3575,8 @@ function moreMenu() {
   items.push({ sep: true }, { label: "Ordina" });
   items.push({ icon: "sort", label: "Come nella playlist", checked: CFG.sort === "orig", run: () => { CFG.sort = "orig"; saveCfg(); render(true); } });
   items.push({ icon: "sort", label: "Per nome (A-Z)", checked: CFG.sort === "az", run: () => { CFG.sort = "az"; saveCfg(); render(true); } });
-  items.push({ sep: true }, { icon: "settings", label: "Impostazioni", run: settingsDialog });
+  items.push({ sep: true }, { icon: "info", label: "Controlla tutti i canali", run: checkAllDialog });
+  items.push({ icon: "settings", label: "Impostazioni", run: settingsDialog });
   popMenu(items);
 }
 let searchLayer = null, qT = 0;

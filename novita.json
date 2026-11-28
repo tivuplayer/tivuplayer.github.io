@@ -1,5 +1,21 @@
 [
   {
+    "v": "2.4.0",
+    "d": "2026-11-28",
+    "n": [
+      "Risolto: i canali con pezzi lunghi (6-10 secondi) non partivano più su rete mobile. Il tempo massimo per tentativo era misurato sul tempo assoluto: su una linea lenta scaricare un pezzo richiede più di quel tetto, e l'app interrompeva un tentativo che stava funzionando benissimo, passando da una fonte all'altra senza mai riuscire. Ora il tetto scatta solo se non arriva più nulla, e tiene conto di quanto sono lunghi i pezzi del canale",
+      "Le fonti che funzionano sono ora condivise fra tutti: l'app pubblica un elenco di quale indirizzo funziona per ogni canale, così chi apre un canale per la prima volta ci va dritto invece di rifare la ricerca. Nelle prove: 4,2 secondi la prima volta, 0,16 secondi con l'elenco",
+      "Se la fonte indicata nell'elenco non dovesse più funzionare, l'app riprende da sola il giro completo delle altre, e da quel momento ricorda la nuova",
+      "Nuovo «Controlla tutti i canali» nel menu in alto a destra: prova uno per uno tutti i canali della playlist e dice quali non partono e perché, con l'elenco copiabile",
+      "Il controllo ricorda le fonti alternative che ha trovato funzionanti, e può esportarle per condividerle con tutti",
+      "Distingue i quattro casi: il server non risponde (indirizzo scaduto nella lista), manda l'elenco dei pezzi ma non il video (riservato a un'altra zona o all'app ufficiale), non lascia leggere il canale a un sito web, oppure indirizzo http bloccato dal browser",
+      "Il decodificatore avanzato (32 MB) non viene più scaricato quando il server non lascia leggere il canale a un sito web: fallirebbe allo stesso modo",
+      "Gli indirizzi http con la porta 80 vengono provati in https senza la porta, e se falliscono il messaggio dice che è il browser a bloccarli, invece di parlare di errore di rete",
+      "Nei Dettagli tecnici si legge anche la durata dei pezzi del canale",
+      "Col telecomando, aprendo una finestra il cursore si posiziona subito sul primo comando"
+    ]
+  },
+  {
     "v": "2.3.5",
     "d": "2026-11-27",
     "n": [
