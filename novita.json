@@ -1,5 +1,15 @@
 [
   {
+    "v": "2.4.6",
+    "d": "2026-11-28",
+    "n": [
+      "Nuovo «Lettore del canale» nel menu del lettore: si può scegliere chi deve decodificare il canale — il lettore del televisore, hls.js, oppure il decodificatore avanzato — e la scelta viene ricordata per quel canale",
+      "Serve quando audio e video non sono sincronizzati: se a decodificare è il televisore l'app non può correggere nulla, ma passando a hls.js il flusso lo costruisce l'app e la sincronia spesso si sistema",
+      "La voce «Guarda con il decodificatore avanzato» sparisce dal menu: ora è una delle scelte del lettore, e a differenza di prima resta memorizzata",
+      "Scegliendo un lettore o una fonte a mano, l'app non li scavalca più con quello che aveva funzionato l'ultima volta"
+    ]
+  },
+  {
     "v": "2.4.5",
     "d": "2026-11-28",
     "n": [

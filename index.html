@@ -1866,6 +1866,15 @@ function idStem(id) { return String(id).toLowerCase().replace(/\.(hd|fhd|uhd|sd|
 // Fonte scelta a mano dall'utente nel menu del lettore: comanda lei, sempre, finche' non si rimette
 // su «Automatica». Serve quando una fonte funziona ma non e' quella giusta (per esempio un canale
 // «Estero» che al posto del programma manda un cartello sui diritti di trasmissione).
+// Lettore scelto a mano. Serve soprattutto per l'audio fuori sincrono: quando a decodificare e' il
+// lettore del televisore l'app non puo' correggere nulla, ma puo' passare la palla a un altro lettore.
+function engPick(ch) { const m = store.get("engpick") || {}; return m[ch.key] || null; }
+function engPickSet(ch, e) {
+  const m = store.get("engpick") || {};
+  if (!e) delete m[ch.key]; else m[ch.key] = e;
+  const ks = Object.keys(m); if (ks.length > 200) delete m[ks[0]];
+  store.set("engpick", m);
+}
 function srcPick(ch) { const m = store.get("srcpick") || {}; return Object.prototype.hasOwnProperty.call(m, ch.key) ? m[ch.key] : null; }
 function srcPickSet(ch, url) {
   const m = store.get("srcpick") || {};
@@ -2062,7 +2071,7 @@ async function playIdx(idx) {
   const memSteps = altSteps.filter(x => x.alt.url === altMem);
   steps.unshift(...memSteps); steps.push(...altSteps.filter(x => x.alt.url !== altMem));
   // cambio canale piu' rapido: il modo che l'ultima volta ha funzionato (lettore + indirizzo) si prova per primo
-  const win = (store.get("win") || {})[ch.key];
+  const win = engPick(ch) || srcPick(ch) != null ? null : (store.get("win") || {})[ch.key];
   if (win) { const wi = steps.findIndex(x => x.e === win.e && x.url === win.u); if (wi > 0) steps.unshift(steps.splice(wi, 1)[0]); }
   // chiesto espressamente dalla schermata d'errore: ci prova il lettore del dispositivo, sull'indirizzo
   // della lista, senza passare da hls.js (e' la strada che non ha il vincolo CORS)
@@ -2084,12 +2093,19 @@ async function playIdx(idx) {
     const cj = ci >= 0 ? ci : steps.findIndex(x => x.url === c.u);
     if (cj >= 0) { comune = c; if (cj > 0) steps.unshift(steps.splice(cj, 1)[0]); }
   }
+  // lettore scelto a mano: il suo passo va in testa (per il decodificatore avanzato lo si aggiunge se manca)
+  const lettore = engPick(ch);
+  if (lettore) {
+    let li = steps.findIndex(x => x.e === lettore);
+    if (li < 0 && lettore === "hlsx" && hlsLike) { steps.unshift({ e: "hlsx", url: hlsLike }); li = 0; }
+    if (li > 0) steps.unshift(steps.splice(li, 1)[0]);
+  }
   // Prima volta su questo canale (nessun ricordo di cosa ha funzionato): si chiede a tutti gli indirizzi insieme
   // chi risponde, e si parte da quello, senza aspettare che il primo fallisca. Se un server risponde ma non lascia
   // leggere la lista a JavaScript (muro CORS), si da' l'indirizzo al LETTORE DEL DISPOSITIVO, che lo riproduce
   // lo stesso: e' il motivo per cui le app per telefono e TV aprono subito canali che al browser costano secondi.
   P.probe = null;
-  if (!win && !comune && scelta == null && P.forceNat !== ch.key && !FRAMED && !pl.proxied) {
+  if (!win && !comune && scelta == null && !lettore && P.forceNat !== ch.key && !FRAMED && !pl.proxied) {
     const viste = new Set(), cand = [];
     for (const st of steps) if ((st.e === "hls" || st.e === "native") && !viste.has(st.url) && !isMixed(st.url) && cand.length < 3) { viste.add(st.url); cand.push(st.url); }
     if (cand.length && cand[0] !== steps[0].url) cand.length = 0;   // il primo da chiedere dev'essere l'indirizzo della lista
@@ -2651,7 +2667,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.4.5";
+const APP_VER = "2.4.6";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3215,7 +3231,26 @@ function playerOptions() {
     }
   }
   nodes.push({ icon: "aspect", label: "Formato immagine: " + FIT_LABEL[fit], run: () => { fit = FITS[(FITS.indexOf(fit) + 1) % FITS.length]; store.set("fit", fit); applyFit(); toast("Formato: " + FIT_LABEL[fit], 1400); } });
-  if (!FRAMED && P.ch && kindOf(P.ch.url) !== "file" && kindOf(P.ch.url) !== "dash") nodes.push({ icon: "tv", label: "Guarda con il decodificatore avanzato", run: () => openChannel(P.ch, true, true) });
+  // --- lettore: serve quando audio e video non vanno d'accordo
+  if (P.ch && !FRAMED) {
+    let dispo = [];
+    try { dispo = plan(P.ch.url).steps.map(x => x.e); } catch (e) {}
+    if (!FRAMED && kindOf(P.ch.url) !== "file" && kindOf(P.ch.url) !== "dash" && window.isSecureContext !== false) dispo.push("hlsx");
+    dispo = [...new Set(dispo)];
+    if (dispo.length > 1) {
+      const sub = { native: "lo decodifica il televisore o il telefono: leggero, ma se sfasa non si può correggere",
+        hls: "lo costruisce l'app: più controllo sulla sincronia", ts: "per i flussi MPEG-TS", flv: "per i flussi FLV",
+        dash: "per i flussi DASH", hlsx: "ricodifica tutto a bordo: pesante, ma apre canali che gli altri non aprono" };
+      const o = [{ v: "", label: "Automatico", sub: "l'app sceglie il primo che funziona" }]
+        .concat(dispo.map(e => ({ v: e, label: engineName(e), sub: sub[e] || "" })));
+      add(optGroup("Lettore del canale", o, engPick(P.ch) || "", v => {
+        engPickSet(P.ch, v || null);
+        if (!v) srcForget(P.ch);   // tornando all'automatico si dimentica anche cosa aveva funzionato
+        note(v ? "Cambio lettore…" : "Lettore automatico");
+        playIdx(P.idx);
+      }, () => closeLayer(L)));
+    }
+  }
   if (P.started) nodes.push({ icon: "refresh", label: "Risincronizza audio e video", run: () => resync() });
   nodes.push({ icon: "info", label: "Dettagli tecnici", run: () => techDialog() });
   nodes.push({ icon: "ext", label: "Apri in un'altra app (VLC…)", run: () => { video.pause(); openExternal(P.ch); } });
