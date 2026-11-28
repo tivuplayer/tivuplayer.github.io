@@ -1,5 +1,14 @@
 [
   {
+    "v": "2.4.3",
+    "d": "2026-11-28",
+    "n": [
+      "Il logo del canale si è spostato in basso, nella barra del programma in onda, accanto all'orario e al titolo: lì si vede meglio e non toglie spazio al nome del canale in alto",
+      "Se il canale non ha programmazione, accanto al logo compare il suo nome, così la barra non resta spoglia",
+      "Sul televisore il logo è più grande (68 px contro 44)"
+    ]
+  },
+  {
     "v": "2.4.2",
     "d": "2026-11-28",
     "n": [

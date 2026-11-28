@@ -228,10 +228,13 @@ kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var
 .p-ui.show { opacity: 1; pointer-events: auto; }
 .p-top { display: flex; align-items: center; gap: 2px; padding: calc(env(safe-area-inset-top, 0px) + 4px) max(4px, env(safe-area-inset-right, 0px)) 28px max(4px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0, 0, 0, .72), transparent); }
 .p-title { flex: 1; min-width: 0; padding-left: 8px; }
-/* logo del canale in onda, nella fascia in alto: stesso riquadro usato nell'elenco e nella finestrella */
-.p-logo { flex: none; margin-left: 6px; display: grid; }
-.p-logo .av { width: 40px; height: 40px; border-radius: 9px; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
-.p-logo .av b { font-size: 16px; }
+/* logo del canale in onda, in basso accanto al programma: stesso riquadro dell'elenco e della finestrella.
+   L'identificatore vince sulle regole .p-epg delle varie dimensioni di schermo, cosi' la riga resta tale. */
+#pEpg { flex-direction: row; align-items: center; column-gap: 12px; }
+.pi-x { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.p-logo { flex: none; display: grid; }
+.p-logo .av { width: 44px; height: 44px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.p-logo .av b { font-size: 17px; }
 .p-logo:empty { display: none; }
 .p-title div:first-child { font-size: 18px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .p-title div:last-child { font-size: 13px; color: rgba(255, 255, 255, .72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -409,8 +412,8 @@ html.tv body { font-size: 17px; }
 html.tv #app { padding-left: max(var(--tv-x), env(safe-area-inset-left, 0px)); padding-right: max(var(--tv-x), env(safe-area-inset-right, 0px)); }
 html.tv .top { padding-top: var(--tv-y); }
 html.tv .brand { font-size: 30px; }
-html.tv .p-logo .av { width: 56px; height: 56px; border-radius: 12px; }
-html.tv .p-logo .av b { font-size: 22px; }
+html.tv .p-logo .av { width: 68px; height: 68px; border-radius: 14px; }
+html.tv .p-logo .av b { font-size: 26px; }
 html.tv .title small { font-size: 15px; }
 html.tv .appbar, html.tv .searchbar { height: 68px; }
 html.tv .ib { width: 56px; height: 56px; }
@@ -631,7 +634,6 @@ html.tv .ch-more:focus { outline: 3px solid var(--accent); outline-offset: 1px; 
   <div class="p-ui" id="pUi">
     <div class="p-top">
       <button class="ib" id="pBack" type="button" aria-label="Chiudi il lettore"></button>
-      <span class="p-logo" id="pLogo" aria-hidden="true"></span>
       <div class="p-title"><div class="p-nm"><span class="p-num" id="pNum" hidden></span><span id="pName"></span></div><div id="pSub"></div></div>
       <button class="ib" id="pFav" type="button" aria-label="Preferito"></button>
       <button class="ib" id="pCast" type="button" aria-label="Trasmetti alla TV" hidden></button>
@@ -2402,25 +2404,31 @@ function showError(e, ch) {
 function updatePlayerInfo() {
   const ch = P.ch; if (!ch) return;
   $("pName").textContent = ch.name; $("pSub").textContent = [ch.group, S.pl && S.pl.name].filter(Boolean).join(" · ");
-  $("pLogo").replaceChildren(avatar(ch));   // il logo del canale che si sta guardando
   setIcon($("pFav"), isFav(ch) ? "star" : "starO"); $("pFav").style.color = isFav(ch) ? "var(--star)" : "";
   $("pFav").setAttribute("aria-label", isFav(ch) ? "Togli dai preferiti" : "Aggiungi ai preferiti");
   const num = $("pNum"); num.hidden = !(ch.i >= 0); if (ch.i >= 0) num.textContent = ch.i + 1;
-  const box = $("pEpg"); box.replaceChildren(); const x = nowNext(ch);
+  // in basso: logo del canale a sinistra, programma in onda a destra
+  const box = $("pEpg"), col = h("div", { class: "pi-x" });
+  box.replaceChildren(h("span", { class: "p-logo", "aria-hidden": "true" }, avatar(ch)), col);
+  const x = nowNext(ch);
   const hasEpg = !!(S.epg[ch.key] && S.epg[ch.key].length);
   box.classList.toggle("tap", hasEpg);
   box.setAttribute("role", hasEpg ? "button" : "presentation");
   box.setAttribute("tabindex", hasEpg ? "0" : "-1");
   box.setAttribute("aria-label", hasEpg ? "Programmazione di " + ch.name : "");
   if (x && x.now) {
-    box.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), h("span", { class: "pi-when", text: hm(x.now.s) + "–" + hm(x.now.e) + " · " + leftLabel(x.now.e - Date.now()) }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
-    box.append(h("div", { class: "pi-t", text: x.now.t }));
-    box.append(h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" })));
-    if (x.next) box.append(h("div", { class: "pi-n" }, h("b", { text: "Dopo" }), " " + hm(x.next.s) + " · " + x.next.t));
+    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), h("span", { class: "pi-when", text: hm(x.now.s) + "–" + hm(x.now.e) + " · " + leftLabel(x.now.e - Date.now()) }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    col.append(h("div", { class: "pi-t", text: x.now.t }));
+    col.append(h("div", { class: "pb" }, h("i", { style: "width:" + Math.round(x.pct * 100) + "%" })));
+    if (x.next) col.append(h("div", { class: "pi-n" }, h("b", { text: "Dopo" }), " " + hm(x.next.s) + " · " + x.next.t));
   } else if (x && x.next) {
-    box.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
-    box.append(h("div", { class: "pi-n" }, h("b", { text: "Alle " + hm(x.next.s) }), " " + x.next.t));
-  } else if (plan(ch.url).live) box.append(h("div", { class: "p-live", text: "DIRETTA" }));
+    col.append(h("div", { class: "pi-top" }, h("span", { class: "p-live", text: "DIRETTA" }), hasEpg ? h("span", { class: "pi-more", text: "Tutta la programmazione ›" }) : null));
+    col.append(h("div", { class: "pi-n" }, h("b", { text: "Alle " + hm(x.next.s) }), " " + x.next.t));
+  } else {
+    // nessuna programmazione per questo canale: accanto al logo resta almeno il suo nome
+    col.append(h("div", { class: "pi-t", text: ch.name }));
+    try { if (plan(ch.url).live) col.append(h("div", { class: "p-live", text: "DIRETTA" })); } catch (e) {}
+  }
 }
 function updateSeek() {
   const d = video.duration, show = !!P.ch && isFinite(d) && d > 0 && kindOf(P.ch.url) !== "ts";
@@ -2584,7 +2592,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.4.2";
+const APP_VER = "2.4.3";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
