@@ -1,5 +1,13 @@
 [
   {
+    "v": "2.4.2",
+    "d": "2026-11-28",
+    "n": [
+      "Aprendo un canale, nella fascia in alto compare ora anche il suo logo, accanto al numero e al nome. Se il canale non ha un logo nella lista resta l'iniziale colorata, come nell'elenco",
+      "Sul televisore il logo è più grande, in proporzione al resto della fascia"
+    ]
+  },
+  {
     "v": "2.4.1",
     "d": "2026-11-28",
     "n": [
