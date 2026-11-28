@@ -1,5 +1,14 @@
 [
   {
+    "v": "2.4.1",
+    "d": "2026-11-28",
+    "n": [
+      "Pubblicato il primo elenco condiviso delle fonti: 31 canali (Rai 1, Rai 2, Rai 3, Rai 4, Rai 5, Rai Movie, Rai Premium, Rai Scuola, Rai Storia, Rai Sport, Rai News, Rai YoYo, La 7, i canali Pluto TV e altri) si aprono ora subito dalla strada giusta, senza che l'app debba cercarla",
+      "Corretto il controllo della lista: un indirizzo http:// veniva bocciato senza nemmeno provare in https, mentre il lettore ci prova. Così Tele Jonio risultava rotto pur essendo sullo stesso server di Elive Tv Brescia e Icaro Tv, che funzionano",
+      "Il controllo ora prova esattamente quello che proverebbe il lettore, anche per le fonti alternative"
+    ]
+  },
+  {
     "v": "2.4.0",
     "d": "2026-11-28",
     "n": [

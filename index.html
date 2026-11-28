@@ -2575,7 +2575,7 @@ function helpDialog() {
 // L'app e' un sito: quando ne pubblico una versione nuova il telefono tiene ancora quella vecchia finche' non
 // ricarica. Qui si controlla ogni tanto il file delle novita': se la versione e' cambiata compare una barra in
 // alto con «Aggiorna». Dopo l'aggiornamento si vede l'elenco di cosa e' cambiato.
-const APP_VER = "2.4.0";
+const APP_VER = "2.4.1";
 let NEWS = null, updReady = "", updCheck = 0;
 function verNum(v) { return String(v || "").split(".").map(x => +x || 0); }
 function verNewer(a, b) {   // a e' piu' recente di b?
@@ -3493,27 +3493,33 @@ async function headAlive(u, ms) {
   } catch (e) { return "muto"; }
 }
 async function proveUrl(u) {
-  if (isMixed(u)) return "misto";
   const k = kindOf(u);
   if (k === "hls" || k === "ignoto") return await plProbe(u, 7000, true);
   return await headAlive(u);
 }
 const ESITI = {
   ok: "funziona",
-  misto: "indirizzo http:// su una pagina https: il browser lo blocca; si apre solo con un'altra app (VLC)",
+  misto: "indirizzo http:// nella lista, e lo stesso server non risponde in https: il browser lo blocca, si apre solo con un'altra app (VLC)",
   cors: "il server risponde ma non lascia leggere il canale a un sito web",
   fermo: "il server manda l'elenco dei pezzi ma non il video: riservato a un'altra zona o all'app ufficiale",
   muto: "il server non risponde: indirizzo scaduto nella lista, o canale spento",
 };
 async function checkChannel(ch) {
+  // si prova quello che proverebbe il lettore, non l'indirizzo grezzo: un http:// viene tentato in https,
+  // e diversi canali della lista funzionano cosi' (stesso server, altra porta). Prima lo bocciavo e basta.
+  let u0 = ch.url;
+  try { const st = plan(ch.url).steps[0]; if (st && st.url) u0 = st.url; } catch (e) {}
+  const misto = isMixed(ch.url);
   let r;
-  try { r = await proveUrl(ch.url); } catch (e) { r = "muto"; }
+  try { r = await proveUrl(u0); } catch (e) { r = "muto"; }
+  if (r !== "ok" && misto) r = "misto";
   if (r === "ok") return { esito: "ok" };
-  if (r === "cors" && hlsNative(ch.url)) return { esito: "ok", det: "lo apre il lettore del dispositivo" };
+  if (r === "cors" && hlsNative(u0)) return { esito: "ok", det: "lo apre il lettore del dispositivo" };
   // non parte dall'indirizzo della lista: c'e' una fonte alternativa che funziona?
   for (const a of altSources(ch).slice(0, 3)) {
-    let ra; try { ra = await proveUrl(a.url); } catch (e) { ra = "muto"; }
-    if (ra === "ok" || (ra === "cors" && hlsNative(a.url))) { altRemember(ch, a); return { esito: "ok", det: "con la fonte alternativa «" + a.name + "»" }; }
+    let ua = a.url; try { const sa = plan(a.url).steps[0]; if (sa && sa.url) ua = sa.url; } catch (e) {}
+    let ra; try { ra = await proveUrl(ua); } catch (e) { ra = "muto"; }
+    if (ra === "ok" || (ra === "cors" && hlsNative(ua))) { altRemember(ch, a); return { esito: "ok", det: "con la fonte alternativa «" + a.name + "»" }; }
   }
   return { esito: r === "cors" ? "forse" : "no", motivo: r };
 }
